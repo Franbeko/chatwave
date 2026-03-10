@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import ChatHeader from "./ChatHeader";
@@ -9,11 +9,18 @@ import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
 function ChatContainer() {
   const { selectedUser, getMessagesByUserId, messages, isMessagesLoading} = useChatStore();
   const { authUser } = useAuthStore();
+  const messageEndRef = useRef(null);
 
 
   useEffect(() => {
     getMessagesByUserId(selectedUser._id);
-  },[selectedUser, getMessagesByUserId])
+  },[selectedUser, getMessagesByUserId]);
+
+  useEffect(() => {
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
 
   return (
@@ -21,7 +28,7 @@ function ChatContainer() {
     <ChatHeader />
     <div className="flex-1 px-6 overflow-y-auto py-8">
       {messages.length > 0 && !isMessagesLoading ? (
-        <div className="max-w-3xl mx-auto space-y-6">
+        < div className="max-w-3xl mx-auto space-y-6">
           {messages.map(msg => (
             <div key={msg._id} className={`chat ${msg.senderId === authUser._id ? "chat-end" : "chat-start"}`}>
               <div className={`chat-bubble relative ${
@@ -42,6 +49,9 @@ function ChatContainer() {
               </div>
             </div>
           ))}
+
+          {/* 👇 scroll target */}
+            <div ref={messageEndRef} />
 
         </div>
       ) : isMessagesLoading ? <MessagesLoadingSkeleton /> :  (
