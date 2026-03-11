@@ -3,6 +3,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import BorderAnimatedContainer from "../components/BorderAnimatedContainer";
 import { MessageCircleIcon, LockIcon, MailIcon, UserIcon, LoaderIcon } from "lucide-react";
 import { Link } from "react-router";
+import toast from "react-hot-toast";
 
 function SignUpPage() {
   const [formData, setFormData] = useState({ fullName: "", email: "", password: "" });
@@ -10,6 +11,23 @@ function SignUpPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    const { fullName, email, password } = formData;
+
+    // Check empty fields
+    if (!fullName || !email || !password) {
+      toast.error("All fields are required");
+      return;
+    }
+
+    // Strong password rule
+    const strongPassword = /^(?=.*[A-Z])(?=.*[0-9]).{6,}$/;
+
+    if (!strongPassword.test(password)) {
+      toast.error("Password must be at least 6 characters and include a capital letter and a number.");
+      return;
+    }
+
     signup(formData);
   };
 
@@ -18,10 +36,12 @@ function SignUpPage() {
       <div className="relative w-full max-w-6xl md:h-[800px] h-[650px]">
         <BorderAnimatedContainer>
           <div className="w-full flex flex-col md:flex-row">
-            {/* FORM CLOUMN - LEFT SIDE */}
+
+            {/* FORM COLUMN - LEFT SIDE */}
             <div className="md:w-1/2 p-8 flex items-center justify-center md:border-r border-slate-600/30">
               <div className="w-full max-w-md">
-                {/* HEADING TEXT */}
+
+                {/* HEADING */}
                 <div className="text-center mb-8">
                   <MessageCircleIcon className="w-12 h-12 mx-auto text-slate-400 mb-4" />
                   <h2 className="text-2xl font-bold text-slate-200 mb-2">Create Account</h2>
@@ -30,6 +50,7 @@ function SignUpPage() {
 
                 {/* FORM */}
                 <form onSubmit={handleSubmit} className="space-y-6">
+
                   {/* FULL NAME */}
                   <div>
                     <label className="auth-input-label">Full Name</label>
@@ -39,14 +60,16 @@ function SignUpPage() {
                       <input
                         type="text"
                         value={formData.fullName}
-                        onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, fullName: e.target.value })
+                        }
                         className="input"
                         placeholder="John Doe"
                       />
                     </div>
                   </div>
 
-                  {/* EMAIL INPUT */}
+                  {/* EMAIL */}
                   <div>
                     <label className="auth-input-label">Email</label>
                     <div className="relative">
@@ -55,14 +78,16 @@ function SignUpPage() {
                       <input
                         type="email"
                         value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, email: e.target.value })
+                        }
                         className="input"
                         placeholder="johndoe@gmail.com"
                       />
                     </div>
                   </div>
 
-                  {/* PASSWORD INPUT */}
+                  {/* PASSWORD */}
                   <div>
                     <label className="auth-input-label">Password</label>
                     <div className="relative">
@@ -71,11 +96,17 @@ function SignUpPage() {
                       <input
                         type="password"
                         value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
                         className="input"
                         placeholder="Enter your password"
                       />
                     </div>
+
+                    <p className="text-xs text-slate-400 mt-2">
+                      Password must contain at least 6 characters, one capital letter, and one number.
+                    </p>
                   </div>
 
                   {/* SUBMIT BUTTON */}
@@ -86,17 +117,20 @@ function SignUpPage() {
                       "Create Account"
                     )}
                   </button>
+
                 </form>
 
+                {/* LOGIN LINK */}
                 <div className="mt-6 text-center">
                   <Link to="/login" className="auth-link">
                     Already have an account? Login
                   </Link>
                 </div>
+
               </div>
             </div>
 
-            {/* FORM ILLUSTRATION - RIGHT SIDE */}
+            {/* RIGHT SIDE ILLUSTRATION */}
             <div className="hidden md:w-1/2 md:flex items-center justify-center p-6 bg-gradient-to-bl from-slate-800/20 to-transparent">
               <div>
                 <img
@@ -104,9 +138,16 @@ function SignUpPage() {
                   alt="People using mobile devices"
                   className="w-full h-auto object-contain"
                 />
+
                 <div className="mt-6 text-center">
-                  <h3 className="text-xl font-medium text-cyan-400">Your Chat Journey Starts Here</h3>
-                  <p className="text-slate-400">Connect with friends, family, and colleagues instantly on ChatWave. Fast, secure, and built for real conversations.</p>
+                  <h3 className="text-xl font-medium text-cyan-400">
+                    Your Chat Journey Starts Here
+                  </h3>
+
+                  <p className="text-slate-400">
+                    Connect with friends, family, and colleagues instantly on ChatWave.
+                    Fast, secure, and built for real conversations.
+                  </p>
 
                   <div className="mt-4 flex justify-center gap-4">
                     <span className="auth-badge">Free Messaging</span>
@@ -116,10 +157,12 @@ function SignUpPage() {
                 </div>
               </div>
             </div>
+
           </div>
         </BorderAnimatedContainer>
       </div>
     </div>
   );
 }
+
 export default SignUpPage;
