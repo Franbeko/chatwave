@@ -1,11 +1,11 @@
 import { useRef, useState } from "react";
-import useKeyboardSound from "../hooks/useKeyboardSound"
+import useKeyboardSound from "../hooks/useKeyboardSound";
 import { useChatStore } from "../store/useChatStore";
 import toast from "react-hot-toast";
 import { ImageIcon, SendIcon, XIcon } from "lucide-react";
 
 function MessageInput() {
- const {playRandomKeyStrokeSound} = useKeyboardSound();
+  const { playRandomKeyStrokeSound } = useKeyboardSound();
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
 
@@ -14,17 +14,17 @@ function MessageInput() {
   const { sendMessage, isSoundEnabled } = useChatStore();
 
   const handleSendMessage = (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!text.trim() && !imagePreview) return;
-    if (isSoundEnabled) playRandomKeyStrokeSound()
+    if (isSoundEnabled) playRandomKeyStrokeSound();
 
-      sendMessage({
-        text: text.trim(),
-        image: imagePreview
-      })
-      setText("")
-      setImagePreview("")
-      if(fileInputRef.current) fileInputRef.current.value = "";
+    sendMessage({
+      text: text.trim(),
+      image: imagePreview,
+    });
+    setText("");
+    setImagePreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleImageChange = (e) => {
@@ -39,12 +39,10 @@ function MessageInput() {
     reader.readAsDataURL(file);
   };
 
-  
   const removeImage = () => {
     setImagePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-
 
   return (
     <div className="p-4 border-t border-slate-700/50">
@@ -68,17 +66,18 @@ function MessageInput() {
       )}
 
       <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto flex space-x-4">
-        <input type="text" 
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value)
-          isSoundEnabled && playRandomKeyStrokeSound()
-        }}
-        className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg py-2 px-4"
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            isSoundEnabled && playRandomKeyStrokeSound();
+          }}
+          className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg py-2 px-4"
           placeholder="Type your message..."
         />
 
-         <input
+        <input
           type="file"
           accept="image/*"
           ref={fileInputRef}
@@ -104,7 +103,6 @@ function MessageInput() {
         </button>
       </form>
     </div>
-  )
+  );
 }
-
-export default MessageInput
+export default MessageInput;
