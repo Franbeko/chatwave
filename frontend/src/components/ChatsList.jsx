@@ -16,7 +16,7 @@ function ChatsList() {
   if (chats.length === 0) return <NoChatsFound />;
 
   return (
-    <>
+    <div className="space-y-2">
       {chats.map((chat) => (
         <div
           key={chat._id}
@@ -29,11 +29,16 @@ function ChatsList() {
                 <img src={chat.profilePic || "/avatar.png"} alt={chat.fullName} />
               </div>
             </div>
-            <h4 className="text-slate-200 font-medium truncate">{chat.fullName}</h4>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-slate-200 font-medium truncate">{chat.fullName}</h4>
+              <p className="text-xs text-slate-400 truncate">
+                {onlineUsers.includes(chat._id) ? "Online" : "Offline"}
+              </p>
+            </div>
           </div>
         </div>
       ))}
-    </>
+    </div>
   );
 }
 export default ChatsList;
