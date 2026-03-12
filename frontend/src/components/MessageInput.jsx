@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import useKeyboardSound from "../hooks/useKeyboardSound";
 import { useChatStore } from "../store/useChatStore";
 import toast from "react-hot-toast";
-import { ImageIcon, SendIcon, XIcon, SmileIcon, MicIcon, SquareIcon, PlayIcon } from "lucide-react";
+import { ImageIcon, SendIcon, XIcon, SmileIcon } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 
 function MessageInput() {
@@ -10,52 +10,24 @@ function MessageInput() {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  
-  // Voice recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [audioPreview, setAudioPreview] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
 
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const inputRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const timerRef = useRef(null);
-  const audioRef = useRef(null);
 
   const { sendMessage, isSoundEnabled } = useChatStore();
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
-
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!text.trim() && !imagePreview && !audioBlob) return;
+    if (!text.trim() && !imagePreview) return;
     if (isSoundEnabled) playRandomKeyStrokeSound();
 
     sendMessage({
       text: text.trim(),
       image: imagePreview,
-      audio: audioBlob,
     });
-    
-    // Reset all states
     setText("");
     setImagePreview("");
-    setAudioBlob(null);
-    setAudioPreview(null);
-    setRecordingTime(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -78,86 +50,6 @@ function MessageInput() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const removeAudio = () => {
-    setAudioBlob(null);
-    setAudioPreview(null);
-    setRecordingTime(0);
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-  };
-
-  // Voice Recording Functions
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        setAudioBlob(audioBlob);
-        setAudioPreview(audioUrl);
-        
-        // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-      
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => {
-          if (prev >= 60) { // Max 60 seconds
-            stopRecording();
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-      
-    } catch (error) {
-      toast.error("Microphone access denied or not available");
-      console.error("Recording error:", error);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      clearInterval(timerRef.current);
-    }
-  };
-
-  const togglePlayAudio = () => {
-    if (!audioPreview) return;
-    
-    if (isPlaying) {
-      audioRef.current?.pause();
-    } else {
-      if (!audioRef.current) {
-        audioRef.current = new Audio(audioPreview);
-        audioRef.current.onended = () => setIsPlaying(false);
-      }
-      audioRef.current.play();
-    }
-    setIsPlaying(!isPlaying);
-  };
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const onEmojiClick = (emojiData) => {
     setText((prev) => prev + emojiData.emoji);
     inputRef.current?.focus();
@@ -176,13 +68,12 @@ function MessageInput() {
   }, []);
 
   return (
-    <div className="p-4 border-t border-slate-700/50 relative">
+    <div className="border-t border-slate-700/50 bg-slate-900/50 p-3 md:p-4">
       {/* Emoji Picker */}
       {showEmojiPicker && (
         <div 
           ref={emojiPickerRef}
-          className="absolute bottom-full left-0 mb-2 z-50"
-          style={{ maxWidth: '320px' }}
+          className="absolute bottom-20 left-4 md:left-6 z-50 shadow-xl"
         >
           <EmojiPicker
             onEmojiClick={onEmojiClick}
@@ -190,146 +81,98 @@ function MessageInput() {
             theme="dark"
             skinTonesDisabled
             searchPlaceholder="Search emoji..."
-            width="100%"
-            height="400px"
-            previewConfig={{
-              showPreview: false
-            }}
+            width={300}
+            height={350}
+            previewConfig={{ showPreview: false }}
           />
         </div>
       )}
 
       {/* Image Preview */}
       {imagePreview && (
-        <div className="max-w-3xl mx-auto mb-3 flex items-center">
-          <div className="relative">
+        <div className="max-w-3xl mx-auto mb-3">
+          <div className="relative inline-block">
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-slate-700"
+              className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-lg border border-slate-700"
             />
             <button
               onClick={removeImage}
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 hover:bg-slate-700 transition-colors"
+              className="absolute -top-2 -right-2 w-5 h-5 md:w-6 md:h-6 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 hover:bg-slate-700 transition-colors border border-slate-600"
               type="button"
             >
-              <XIcon className="w-4 h-4" />
+              <XIcon className="w-3 h-3 md:w-4 md:h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Audio Preview */}
-      {audioPreview && (
-        <div className="max-w-3xl mx-auto mb-3 flex items-center gap-2 bg-slate-800/50 p-2 rounded-lg">
+      {/* Message Input Form */}
+      <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto">
+        <div className="flex items-center gap-2 bg-slate-800/50 rounded-lg border border-slate-700/50 p-1">
+          {/* Emoji Button */}
           <button
-            onClick={togglePlayAudio}
-            className="p-1 rounded-full bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
+            type="button"
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+              showEmojiPicker 
+                ? "bg-cyan-500/20 text-cyan-400" 
+                : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
+            }`}
           >
-            {isPlaying ? <SquareIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
+            <SmileIcon className="w-5 h-5" />
           </button>
-          <div className="flex-1 h-1 bg-slate-700 rounded-full">
-            <div className="h-1 bg-cyan-500 rounded-full w-0"></div>
-          </div>
-          <span className="text-xs text-slate-400">{formatTime(recordingTime)}</span>
+
+          {/* Text Input */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              isSoundEnabled && playRandomKeyStrokeSound();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setShowEmojiPicker(false);
+              }
+            }}
+            className="flex-1 bg-transparent py-2 px-2 text-slate-200 placeholder-slate-500 focus:outline-none text-sm md:text-base"
+            placeholder="Type a message..."
+          />
+
+          {/* Hidden File Input */}
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            onChange={handleImageChange}
+            className="hidden"
+          />
+
+          {/* Image Upload Button */}
           <button
-            onClick={removeAudio}
-            className="p-1 rounded-full hover:bg-slate-700"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+              imagePreview 
+                ? "bg-cyan-500/20 text-cyan-400" 
+                : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
+            }`}
           >
-            <XIcon className="w-4 h-4 text-slate-400" />
+            <ImageIcon className="w-5 h-5" />
+          </button>
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            disabled={!text.trim() && !imagePreview}
+            className="p-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            <SendIcon className="w-5 h-5" />
           </button>
         </div>
-      )}
-
-      {/* Recording Indicator */}
-      {isRecording && (
-        <div className="max-w-3xl mx-auto mb-3 flex items-center gap-2 bg-red-500/20 p-2 rounded-lg">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-          <span className="text-sm text-red-400">Recording... {formatTime(recordingTime)}</span>
-          <button
-            onClick={stopRecording}
-            className="ml-auto p-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30"
-          >
-            <SquareIcon className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto flex items-center gap-2">
-        {/* Emoji Button */}
-        <button
-          type="button"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className={`p-2 rounded-lg transition-colors ${
-            showEmojiPicker 
-              ? "bg-cyan-500/20 text-cyan-400" 
-              : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <SmileIcon className="w-5 h-5" />
-        </button>
-
-        {/* Text Input */}
-        <input
-          ref={inputRef}
-          type="text"
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            isSoundEnabled && playRandomKeyStrokeSound();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setShowEmojiPicker(false);
-            }
-          }}
-          className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg py-2 px-4 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-          placeholder="Type your message..."
-        />
-
-        {/* Voice Recording Button */}
-        <button
-          type="button"
-          onClick={isRecording ? stopRecording : startRecording}
-          className={`p-2 rounded-lg transition-colors ${
-            isRecording 
-              ? "bg-red-500/20 text-red-400 animate-pulse" 
-              : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <MicIcon className="w-5 h-5" />
-        </button>
-
-        {/* Hidden File Input */}
-        <input
-          type="file"
-          accept="image/*"
-          ref={fileInputRef}
-          onChange={handleImageChange}
-          className="hidden"
-        />
-
-        {/* Image Upload Button */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className={`p-2 rounded-lg transition-colors ${
-            imagePreview 
-              ? "bg-cyan-500/20 text-cyan-400" 
-              : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <ImageIcon className="w-5 h-5" />
-        </button>
-
-        {/* Send Button */}
-        <button
-          type="submit"
-          disabled={!text.trim() && !imagePreview && !audioBlob}
-          className="p-2 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-lg hover:from-cyan-600 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <SendIcon className="w-5 h-5" />
-        </button>
       </form>
     </div>
   );
