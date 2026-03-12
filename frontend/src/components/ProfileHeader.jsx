@@ -5,7 +5,6 @@ import { useChatStore } from "../store/useChatStore";
 
 const mouseClickSound = new Audio("/sounds/mouse-click.mp3");
 
-
 function ProfileHeader() {
    const { logout, authUser, updateProfile } = useAuthStore();
    const { isSoundEnabled, toggleSound } = useChatStore();
@@ -27,76 +26,72 @@ function ProfileHeader() {
     }
    };
 
-
-
   return (
-    <div className="p-6 border-b border-slate-700/50">
+    <div className="p-3 border-b border-slate-700/50">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* AVATAR */}
           <div className="avatar online">
-            <button className="size-14 rounded-full overflow-hidden relative group"
-            onClick={() => fileInputRef.current.click()}
+            <button 
+              className="w-10 h-10 rounded-full overflow-hidden relative group"
+              onClick={() => fileInputRef.current.click()}
             >
-              <img src={selectedImg || authUser.profilePic || "/avatar.png"} alt=" User image"
-                 className="size-full object-cover"
+              <img 
+                src={selectedImg || authUser.profilePic || "/avatar.png"} 
+                alt="User image"
+                className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-
-              <span className="text-white text-xs">Change</span>
-
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-full">
+                <span className="text-white text-[10px]">Edit</span>
               </div>
-
             </button>
 
-            <input type="file"
-            accept="images/*"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            className="hidden"
+            <input
+              type="file"
+              accept="images/*"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              className="hidden"
             />
           </div>
 
           {/* USERNAME & ONLINE TEXT */}
           <div>
-            <h3 className="text-slate-200 font-medium text-base max-w-[180px] truncate">
+            <h3 className="text-slate-200 font-medium text-sm max-w-[150px] truncate">
               {authUser.fullName}
             </h3>
-
-            <p className="text-slate-400 text-xs">Online</p>
+            <p className="text-slate-400 text-[10px]">Online</p>
           </div>
         </div>
 
         {/* BUTTONS */}
-        <div className="flex gap-4 items-center">
-          {/* LOGOUT BTN */}
-          <button
-            className="text-slate-400 hover:text-slate-200 transition-colors"
-            onClick={logout}
-          >
-            <LogOutIcon className="size-5" />
-          </button>
-
+        <div className="flex gap-2 items-center">
           {/* SOUND TOGGLE BTN */}
           <button
-            className="text-slate-400 hover:text-slate-200 transition-colors"
+            className="text-slate-400 hover:text-slate-200 transition-colors p-1"
             onClick={() => {
               // play click sound before toggling
-              mouseClickSound.currentTime = 0; // reset to start
+              mouseClickSound.currentTime = 0;
               mouseClickSound.play().catch((error) => console.log("Audio play failed:", error));
               toggleSound();
             }}
           >
             {isSoundEnabled ? (
-              <Volume2Icon className="size-5" />
+              <Volume2Icon className="w-4 h-4" />
             ) : (
-              <VolumeOffIcon className="size-5" />
+              <VolumeOffIcon className="w-4 h-4" />
             )}
+          </button>
+
+          {/* LOGOUT BTN */}
+          <button
+            className="text-slate-400 hover:text-slate-200 transition-colors p-1"
+            onClick={logout}
+          >
+            <LogOutIcon className="w-4 h-4" />
           </button>
         </div>
       </div>
-      
-
     </div>
   )
 }

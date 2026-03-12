@@ -50,7 +50,7 @@ function ChatContainer() {
       {/* Messages Container - Scrollable Area */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto px-3 md:px-4 py-4 space-y-3"
+        className="flex-1 overflow-y-auto px-2 py-2 space-y-2"
         style={{ scrollBehavior: 'smooth' }}
       >
         {isMessagesLoading ? (
@@ -58,7 +58,7 @@ function ChatContainer() {
         ) : messages.length === 0 ? (
           <NoChatHistoryPlaceholder name={selectedUser.fullName} />
         ) : (
-          <div className="max-w-3xl mx-auto space-y-3">
+          <div className="max-w-3xl mx-auto space-y-2">
             {messages.map((msg) => {
               const isOwn = msg.senderId === authUser._id;
               
@@ -71,7 +71,7 @@ function ChatContainer() {
                     {/* Message Bubble */}
                     <div
                       className={`
-                        rounded-2xl px-3 py-2 md:px-4 md:py-2.5
+                        rounded-2xl px-2.5 py-1.5
                         ${isOwn 
                           ? 'bg-cyan-600 text-white rounded-br-none' 
                           : 'bg-slate-700 text-slate-200 rounded-bl-none'
@@ -84,26 +84,26 @@ function ChatContainer() {
                         <img 
                           src={msg.image} 
                           alt="Shared" 
-                          className="rounded-lg max-w-full max-h-48 object-cover mb-2"
+                          className="rounded-lg max-w-full max-h-32 object-cover mb-1"
                         />
                       )}
                       
                       {/* Text Message */}
                       {msg.text && (
-                        <p className="text-sm md:text-base break-words">{msg.text}</p>
+                        <p className="text-sm break-words">{msg.text}</p>
                       )}
                       
                       {/* Message Footer - Time and Status */}
-                      <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${
+                      <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10px] ${
                         isOwn ? 'text-cyan-100' : 'text-slate-400'
                       }`}>
                         <span>{formatMessageTime(msg.createdAt)}</span>
                         {isOwn && (
                           <span className="flex items-center">
                             {msg.isOptimistic ? (
-                              <Clock className="w-3 h-3" />
+                              <Clock className="w-2.5 h-2.5" />
                             ) : (
-                              <CheckCheck className="w-3 h-3" />
+                              <CheckCheck className="w-2.5 h-2.5" />
                             )}
                           </span>
                         )}

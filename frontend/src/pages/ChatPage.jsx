@@ -11,13 +11,13 @@ function ChatPage() {
   const { activeTab, selectedUser } = useChatStore();
 
   return (
-    <div className="relative w-full max-w-6xl h-[85vh] md:h-[80vh] flex flex-col">
+    <div className="relative w-full max-w-6xl h-[80vh] md:h-[75vh] flex flex-col">
       <BorderAnimatedContainer className="flex-1 flex overflow-hidden min-h-0">
         {/* LEFT SIDE (SIDEBAR) */}
         <div
           className={`
           ${selectedUser ? "hidden md:flex" : "flex"}
-          flex-col w-full md:w-80 bg-slate-800/50 backdrop-blur-sm h-full
+          flex-col w-full md:w-72 bg-slate-800/50 backdrop-blur-sm h-full
           `}
         >
           <ProfileHeader />
@@ -25,7 +25,7 @@ function ChatPage() {
 
           {/* Scrollable Lists Container */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="p-3 space-y-1.5">
+            <div className="p-2 space-y-1">
               {activeTab === "chats" ? <ChatsList /> : <ContactList />}
             </div>
           </div>

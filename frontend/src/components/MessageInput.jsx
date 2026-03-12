@@ -100,7 +100,7 @@ function MessageInput() {
       // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime((prev) => {
-          if (prev >= 30) { // Max 30 seconds for compact design
+          if (prev >= 30) { // Max 30 seconds
             stopRecording();
             return prev;
           }
@@ -109,9 +109,8 @@ function MessageInput() {
       }, 1000);
       
     } catch (error) {
-      // Fixed: Now using the error parameter
       console.error("Recording error:", error);
-      toast.error("Microphone access denied. Please check your permissions.");
+      toast.error("Microphone access denied");
     }
   };
 
@@ -147,12 +146,12 @@ function MessageInput() {
   }, []);
 
   return (
-    <div className="border-t border-slate-700/50 bg-slate-900/50 p-2">
+    <div className="border-t border-slate-700/50 bg-slate-900/50 p-1.5">
       {/* Emoji Picker */}
       {showEmojiPicker && (
         <div 
           ref={emojiPickerRef}
-          className="absolute bottom-16 left-2 md:left-4 z-50 shadow-xl"
+          className="absolute bottom-14 left-1 md:left-2 z-50 shadow-xl"
         >
           <EmojiPicker
             onEmojiClick={onEmojiClick}
@@ -160,8 +159,8 @@ function MessageInput() {
             theme="dark"
             skinTonesDisabled
             searchPlaceholder="Search..."
-            width={280}
-            height={320}
+            width={260}
+            height={300}
             previewConfig={{ showPreview: false }}
           />
         </div>
@@ -169,19 +168,19 @@ function MessageInput() {
 
       {/* Image Preview */}
       {imagePreview && (
-        <div className="max-w-3xl mx-auto mb-2">
+        <div className="max-w-3xl mx-auto mb-1">
           <div className="relative inline-block">
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-14 h-14 object-cover rounded-lg border border-slate-700"
+              className="w-12 h-12 object-cover rounded-lg border border-slate-700"
             />
             <button
               onClick={removeImage}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 hover:bg-slate-700 border border-slate-600"
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 hover:bg-slate-700 border border-slate-600"
               type="button"
             >
-              <XIcon className="w-3 h-3" />
+              <XIcon className="w-2.5 h-2.5" />
             </button>
           </div>
         </div>
@@ -189,46 +188,46 @@ function MessageInput() {
 
       {/* Audio Preview */}
       {audioBlob && !isRecording && (
-        <div className="max-w-3xl mx-auto mb-2 flex items-center gap-1 bg-slate-800/50 p-1.5 rounded-lg w-fit">
-          <span className="text-xs text-cyan-400">Audio ready</span>
-          <span className="text-xs text-slate-400">{formatTime(recordingTime)}</span>
+        <div className="max-w-3xl mx-auto mb-1 flex items-center gap-1 bg-slate-800/50 p-1 rounded-lg w-fit">
+          <span className="text-[10px] text-cyan-400">Audio</span>
+          <span className="text-[10px] text-slate-400">{formatTime(recordingTime)}</span>
           <button
             onClick={removeAudio}
             className="p-0.5 rounded-full hover:bg-slate-700"
           >
-            <XIcon className="w-3 h-3 text-slate-400" />
+            <XIcon className="w-2.5 h-2.5 text-slate-400" />
           </button>
         </div>
       )}
 
       {/* Recording Indicator */}
       {isRecording && (
-        <div className="max-w-3xl mx-auto mb-2 flex items-center gap-1 bg-red-500/20 p-1.5 rounded-lg w-fit">
-          <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-          <span className="text-xs text-red-400">{formatTime(recordingTime)}</span>
+        <div className="max-w-3xl mx-auto mb-1 flex items-center gap-1 bg-red-500/20 p-1 rounded-lg w-fit">
+          <div className="w-1 h-1 bg-red-500 rounded-full animate-pulse"></div>
+          <span className="text-[10px] text-red-400">{formatTime(recordingTime)}</span>
           <button
             onClick={stopRecording}
-            className="p-0.5 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 ml-1"
+            className="p-0.5 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30"
           >
-            <SquareIcon className="w-3 h-3" />
+            <SquareIcon className="w-2.5 h-2.5" />
           </button>
         </div>
       )}
 
       {/* Message Input Form */}
       <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-1 bg-slate-800/50 rounded-lg border border-slate-700/50 p-1">
+        <div className="flex items-center gap-0.5 bg-slate-800/50 rounded-lg border border-slate-700/50 p-0.5">
           {/* Emoji Button */}
           <button
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+            className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
               showEmojiPicker 
                 ? "bg-cyan-500/20 text-cyan-400" 
                 : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
             }`}
           >
-            <SmileIcon className="w-4 h-4" />
+            <SmileIcon className="w-3.5 h-3.5" />
           </button>
 
           {/* Text Input */}
@@ -245,7 +244,7 @@ function MessageInput() {
                 setShowEmojiPicker(false);
               }
             }}
-            className="flex-1 bg-transparent py-1.5 px-1 text-slate-200 placeholder-slate-500 focus:outline-none text-sm"
+            className="flex-1 bg-transparent py-1 px-1 text-slate-200 placeholder-slate-500 focus:outline-none text-xs"
             placeholder="Message..."
           />
 
@@ -253,13 +252,13 @@ function MessageInput() {
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+            className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
               isRecording 
                 ? "bg-red-500/20 text-red-400 animate-pulse" 
                 : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
             }`}
           >
-            <MicIcon className="w-4 h-4" />
+            <MicIcon className="w-3.5 h-3.5" />
           </button>
 
           {/* Hidden File Input */}
@@ -275,22 +274,22 @@ function MessageInput() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+            className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
               imagePreview 
                 ? "bg-cyan-500/20 text-cyan-400" 
                 : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
             }`}
           >
-            <ImageIcon className="w-4 h-4" />
+            <ImageIcon className="w-3.5 h-3.5" />
           </button>
 
           {/* Send Button */}
           <button
             type="submit"
             disabled={!text.trim() && !imagePreview && !audioBlob}
-            className="p-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            className="p-1 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           >
-            <SendIcon className="w-4 h-4" />
+            <SendIcon className="w-3.5 h-3.5" />
           </button>
         </div>
       </form>
