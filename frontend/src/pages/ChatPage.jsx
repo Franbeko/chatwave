@@ -13,35 +13,37 @@ function ChatPage() {
 
   return (
     <div className="relative w-full max-w-6xl h-screen mx-auto">
-      <BorderAnimatedContainer>
 
-        <div className="flex h-full">
+      <BorderAnimatedContainer className="flex h-full overflow-hidden">
 
-          {/* LEFT SIDE */}
-          <div className="w-72 md:w-80 bg-slate-800/50 backdrop-blur-sm flex flex-col">
+        {/* LEFT SIDE (SIDEBAR) */}
+        <div
+          className={`
+          ${selectedUser ? "hidden md:flex" : "flex"}
+          flex-col w-full md:w-80 bg-slate-800/50 backdrop-blur-sm
+          `}
+        >
+          <ProfileHeader />
 
-            <ProfileHeader />
+          <ActiveTabSwitch />
 
-            <ActiveTabSwitch />
-
-            {/* Scrollable chat list */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {activeTab === "chats" ? <ChatsList /> : <ContactList />}
-            </div>
-
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {activeTab === "chats" ? <ChatsList /> : <ContactList />}
           </div>
+        </div>
 
-          {/* RIGHT SIDE */}
-          <div className="flex-1 flex flex-col bg-slate-900/50 backdrop-blur-sm">
-
-            {selectedUser ? (
-              <ChatContainer />
-            ) : (
-              <NoConversationPlaceholder />
-            )}
-
-          </div>
-
+        {/* RIGHT SIDE (CHAT AREA) */}
+        <div
+          className={`
+          ${!selectedUser ? "hidden md:flex" : "flex"}
+          flex-1 flex-col bg-slate-900/50 backdrop-blur-sm
+          `}
+        >
+          {selectedUser ? (
+            <ChatContainer />
+          ) : (
+            <NoConversationPlaceholder />
+          )}
         </div>
 
       </BorderAnimatedContainer>
