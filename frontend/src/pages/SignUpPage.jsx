@@ -6,7 +6,12 @@ import { Link } from "react-router";
 import toast from "react-hot-toast";
 
 function SignUpPage() {
-  const [formData, setFormData] = useState({ fullName: "", email: "", password: "" });
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+  });
+
   const { signup, isSigningUp } = useAuthStore();
 
   const handleSubmit = (e) => {
@@ -14,17 +19,19 @@ function SignUpPage() {
 
     const { fullName, email, password } = formData;
 
-    // Check empty fields
+    // check empty fields
     if (!fullName || !email || !password) {
       toast.error("All fields are required");
       return;
     }
 
-    // Strong password rule
+    // strong password rule
     const strongPassword = /^(?=.*[A-Z])(?=.*[0-9]).{6,}$/;
 
     if (!strongPassword.test(password)) {
-      toast.error("Password must be at least 6 characters and include a capital letter and a number.");
+      toast.error(
+        "Password must be at least 6 characters and include a capital letter and a number."
+      );
       return;
     }
 
@@ -37,15 +44,19 @@ function SignUpPage() {
         <BorderAnimatedContainer>
           <div className="w-full flex flex-col md:flex-row">
 
-            {/* FORM COLUMN - LEFT SIDE */}
+            {/* FORM COLUMN */}
             <div className="md:w-1/2 p-8 flex items-center justify-center md:border-r border-slate-600/30">
               <div className="w-full max-w-md">
 
-                {/* HEADING */}
+                {/* HEADER */}
                 <div className="text-center mb-8">
                   <MessageCircleIcon className="w-12 h-12 mx-auto text-slate-400 mb-4" />
-                  <h2 className="text-2xl font-bold text-slate-200 mb-2">Create Account</h2>
-                  <p className="text-slate-400">Sign up for a new account</p>
+                  <h2 className="text-2xl font-bold text-slate-200 mb-2">
+                    Create Account
+                  </h2>
+                  <p className="text-slate-400">
+                    Join ChatWave and start chatting instantly
+                  </p>
                 </div>
 
                 {/* FORM */}
@@ -61,7 +72,10 @@ function SignUpPage() {
                         type="text"
                         value={formData.fullName}
                         onChange={(e) =>
-                          setFormData({ ...formData, fullName: e.target.value })
+                          setFormData({
+                            ...formData,
+                            fullName: e.target.value,
+                          })
                         }
                         className="input"
                         placeholder="John Doe"
@@ -79,7 +93,10 @@ function SignUpPage() {
                         type="email"
                         value={formData.email}
                         onChange={(e) =>
-                          setFormData({ ...formData, email: e.target.value })
+                          setFormData({
+                            ...formData,
+                            email: e.target.value,
+                          })
                         }
                         className="input"
                         placeholder="johndoe@gmail.com"
@@ -97,27 +114,33 @@ function SignUpPage() {
                         type="password"
                         value={formData.password}
                         onChange={(e) =>
-                          setFormData({ ...formData, password: e.target.value })
+                          setFormData({
+                            ...formData,
+                            password: e.target.value,
+                          })
                         }
                         className="input"
-                        placeholder="Enter your password"
+                        placeholder="Create a strong password"
                       />
                     </div>
 
                     <p className="text-xs text-slate-400 mt-2">
-                      Password must contain at least 6 characters, one capital letter, and one number.
+                      Must contain at least 6 characters, one capital letter and one number.
                     </p>
                   </div>
 
-                  {/* SUBMIT BUTTON */}
-                  <button className="auth-btn" type="submit" disabled={isSigningUp}>
+                  {/* BUTTON */}
+                  <button
+                    className="auth-btn"
+                    type="submit"
+                    disabled={isSigningUp}
+                  >
                     {isSigningUp ? (
                       <LoaderIcon className="w-full h-5 animate-spin text-center" />
                     ) : (
                       "Create Account"
                     )}
                   </button>
-
                 </form>
 
                 {/* LOGIN LINK */}
@@ -126,16 +149,15 @@ function SignUpPage() {
                     Already have an account? Login
                   </Link>
                 </div>
-
               </div>
             </div>
 
-            {/* RIGHT SIDE ILLUSTRATION */}
+            {/* RIGHT SIDE IMAGE */}
             <div className="hidden md:w-1/2 md:flex items-center justify-center p-6 bg-gradient-to-bl from-slate-800/20 to-transparent">
               <div>
                 <img
                   src="/signup.png"
-                  alt="People using mobile devices"
+                  alt="ChatWave signup illustration"
                   className="w-full h-auto object-contain"
                 />
 
