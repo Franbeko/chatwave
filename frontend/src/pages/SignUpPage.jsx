@@ -55,7 +55,7 @@ function SignUpPage() {
                     Create Account
                   </h2>
                   <p className="text-slate-400">
-                    Join ChatWave and start chatting instantly
+                    Join ChatWave and start chatting.
                   </p>
                 </div>
 
