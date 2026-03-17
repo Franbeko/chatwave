@@ -32,6 +32,7 @@ function ChatContainer() {
   const [contextMenuPosition, setContextMenuPosition] = useState({ top: 0, left: 'auto', right: 'auto' });
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
   const [replyToMsg, setReplyToMsg] = useState(null);
+  const longPressTimerRef = useRef(null);
 
   useEffect(() => {
     if (selectedUser) {
@@ -103,10 +104,43 @@ function ChatContainer() {
     setSelectedMessageId(null);
   };
 
+  // Handle right-click (desktop)
   const handleContextMenu = (e, msg, isOwn) => {
     e.preventDefault();
     e.stopPropagation();
-    
+    showContextMenu(e, msg, isOwn);
+  };
+
+  // Handle long press (mobile)
+  const handleTouchStart = (e, msg, isOwn) => {
+    e.preventDefault();
+    longPressTimerRef.current = setTimeout(() => {
+      // Vibrate on long press (if supported)
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+      showContextMenu(e, msg, isOwn);
+    }, 500); // 500ms long press
+  };
+
+  // Fixed: Removed parameter completely since it's not needed
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // Fixed: Removed parameter completely since it's not needed
+  const handleTouchMove = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const showContextMenu = (e, msg, isOwn) => {
+    const touch = e.touches ? e.touches[0] : e;
     const messageElement = e.currentTarget;
     const rect = messageElement.getBoundingClientRect();
     
@@ -116,7 +150,7 @@ function ChatContainer() {
       right = 20; // Position from right
       left = 'auto';
     } else {
-      left = rect.left + 10;
+      left = (touch?.clientX || rect.left) + 10;
       right = 'auto';
     }
     
@@ -124,7 +158,7 @@ function ChatContainer() {
     setContextMenuPosition({
       left: left,
       right: right,
-      top: rect.top + window.scrollY - 5
+      top: (touch?.clientY || rect.top) + window.scrollY - 5
     });
     setShowDeleteOptions(false);
   };
@@ -140,7 +174,11 @@ function ChatContainer() {
       setShowDeleteOptions(false);
     };
     document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   if (!selectedUser) return null;
@@ -182,6 +220,10 @@ function ChatContainer() {
                   key={msg._id}
                   className={`flex ${isOwn ? 'justify-end' : 'justify-start'} relative`}
                   onContextMenu={(e) => handleContextMenu(e, msg, isOwn)}
+                  onTouchStart={(e) => handleTouchStart(e, msg, isOwn)}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchMove={handleTouchMove}
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   <div className={`max-w-[75%] md:max-w-[65%] ${isOwn ? 'order-2' : 'order-1'}`}>
                     {/* Reply Indicator */}
@@ -210,6 +252,7 @@ function ChatContainer() {
                         ${msg.isOptimistic ? 'opacity-70' : ''}
                         ${msg.starred ? 'ring-1 ring-yellow-400' : ''}
                         ${selectedMessageId === msg._id ? 'ring-2 ring-cyan-500' : ''}
+                        active:opacity-80 transition-opacity
                       `}
                     >
                       {/* Image Message */}
@@ -264,7 +307,7 @@ function ChatContainer() {
                     />
                   </div>
 
-                  {/* WhatsApp-style Context Menu */}
+                  {/* Context Menu - Shows on right-click (desktop) or long-press (mobile) */}
                   {selectedMessageId === msg._id && !showDeleteOptions && (
                     <div
                       className="fixed z-[9999] bg-slate-800 rounded-lg shadow-xl border border-slate-700 py-1 min-w-[160px]"
@@ -274,11 +317,12 @@ function ChatContainer() {
                         right: contextMenuPosition.right,
                       }}
                       onClick={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                     >
                       {msg.text && (
                         <button
                           onClick={() => handleCopyMessage(msg.text)}
-                          className="w-full px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                          className="w-full px-4 py-3 md:py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                         >
                           <Copy className="w-4 h-4" />
                           Copy
@@ -287,7 +331,7 @@ function ChatContainer() {
                       
                       <button
                         onClick={() => handleReply(msg)}
-                        className="w-full px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                        className="w-full px-4 py-3 md:py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Reply className="w-4 h-4" />
                         Reply
@@ -295,7 +339,7 @@ function ChatContainer() {
                       
                       <button
                         onClick={() => handleForward(msg)}
-                        className="w-full px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                        className="w-full px-4 py-3 md:py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Share2 className="w-4 h-4" />
                         Forward
@@ -303,7 +347,7 @@ function ChatContainer() {
                       
                       <button
                         onClick={() => handleStar(msg)}
-                        className="w-full px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                        className="w-full px-4 py-3 md:py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Star className={`w-4 h-4 ${msg.starred ? 'fill-yellow-400 text-yellow-400' : ''}`} />
                         {msg.starred ? 'Unstar' : 'Star'}
@@ -315,7 +359,7 @@ function ChatContainer() {
                             e.stopPropagation();
                             setShowDeleteOptions(true);
                           }}
-                          className="w-full px-4 py-2 text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
+                          className="w-full px-4 py-3 md:py-2 text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
                         >
                           <Trash2 className="w-4 h-4" />
                           Delete
@@ -325,7 +369,7 @@ function ChatContainer() {
                       {!isOwn && (
                         <button
                           onClick={() => handleReport(msg)}
-                          className="w-full px-4 py-2 text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
+                          className="w-full px-4 py-3 md:py-2 text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
                         >
                           <Flag className="w-4 h-4" />
                           Report
@@ -334,7 +378,7 @@ function ChatContainer() {
                     </div>
                   )}
 
-                  {/* WhatsApp-style Delete Options */}
+                  {/* Delete Options Menu */}
                   {selectedMessageId === msg._id && showDeleteOptions && (
                     <div
                       className="fixed z-[9999] bg-slate-800 rounded-lg shadow-xl border border-slate-700 py-1 min-w-[180px]"
@@ -344,6 +388,7 @@ function ChatContainer() {
                         right: contextMenuPosition.right,
                       }}
                       onClick={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                     >
                       <div className="px-4 py-1 text-xs text-slate-400 border-b border-slate-700">
                         Delete Message
@@ -351,7 +396,7 @@ function ChatContainer() {
                       
                       <button
                         onClick={() => handleDeleteMessage(msg._id, false)}
-                        className="w-full px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                        className="w-full px-4 py-3 md:py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
                         Delete for me
@@ -359,7 +404,7 @@ function ChatContainer() {
                       
                       <button
                         onClick={() => handleDeleteMessage(msg._id, true)}
-                        className="w-full px-4 py-2 text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
+                        className="w-full px-4 py-3 md:py-2 text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
                         Delete for everyone
@@ -367,7 +412,7 @@ function ChatContainer() {
                       
                       <button
                         onClick={() => setShowDeleteOptions(false)}
-                        className="w-full px-4 py-2 text-sm text-slate-400 hover:bg-slate-700 flex items-center gap-2"
+                        className="w-full px-4 py-3 md:py-2 text-sm text-slate-400 hover:bg-slate-700 flex items-center gap-2"
                       >
                         Cancel
                       </button>
