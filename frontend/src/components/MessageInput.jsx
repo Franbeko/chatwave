@@ -1,20 +1,24 @@
 import { useRef, useState, useEffect } from "react";
 import useKeyboardSound from "../hooks/useKeyboardSound";
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore"; // Add this import
 import toast from "react-hot-toast";
-import { ImageIcon, SendIcon, XIcon, SmileIcon, MicIcon, SquareIcon } from "lucide-react";
+import { ImageIcon, SendIcon, XIcon, SmileIcon, MicIcon, SquareIcon, PlayIcon, PauseIcon } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 
-function MessageInput() {
+function MessageInput({ replyTo, setReplyTo }) {
   const { playRandomKeyStrokeSound } = useKeyboardSound();
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -22,15 +26,21 @@ function MessageInput() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+  const audioRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
-  const { sendMessage, isSoundEnabled } = useChatStore();
+  const { sendMessage, isSoundEnabled, emitTypingStatus, selectedUser } = useChatStore();
+  const { authUser } = useAuthStore(); // Get authUser from store
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      emitTypingStatus(false);
     };
-  }, []);
+  }, [audioUrl, emitTypingStatus]);
 
   const handleSendMessage = (e) => {
     e.preventDefault();
@@ -41,14 +51,20 @@ function MessageInput() {
       text: text.trim(),
       image: imagePreview,
       audio: audioBlob,
+      replyTo: replyTo ? { id: replyTo._id, text: replyTo.text, sender: replyTo.senderId } : null
     });
     
     // Reset all states
     setText("");
     setImagePreview("");
     setAudioBlob(null);
+    setAudioUrl(null);
     setRecordingTime(0);
+    if (setReplyTo) setReplyTo(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    
+    emitTypingStatus(false);
+    setIsTyping(false);
   };
 
   const handleImageChange = (e) => {
@@ -72,7 +88,13 @@ function MessageInput() {
 
   const removeAudio = () => {
     setAudioBlob(null);
+    setAudioUrl(null);
     setRecordingTime(0);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setIsPlaying(false);
   };
 
   // Voice Recording Functions
@@ -87,20 +109,20 @@ function MessageInput() {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(audioBlob);
         setAudioBlob(audioBlob);
+        setAudioUrl(url);
         
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
       
-      // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime((prev) => {
-          if (prev >= 30) { // Max 30 seconds
+          if (prev >= 30) {
             stopRecording();
             return prev;
           }
@@ -122,6 +144,25 @@ function MessageInput() {
     }
   };
 
+  const togglePlayAudio = () => {
+    if (!audioUrl) return;
+    
+    if (isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+    } else {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(audioUrl);
+        audioRef.current.onended = () => {
+          setIsPlaying(false);
+          audioRef.current = null;
+        };
+      }
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -131,6 +172,30 @@ function MessageInput() {
   const onEmojiClick = (emojiData) => {
     setText((prev) => prev + emojiData.emoji);
     inputRef.current?.focus();
+  };
+
+  // Handle typing indicator
+  const handleTextChange = (e) => {
+    const newText = e.target.value;
+    setText(newText);
+    
+    if (isSoundEnabled) playRandomKeyStrokeSound();
+    
+    if (!isTyping && newText.length > 0) {
+      setIsTyping(true);
+      emitTypingStatus(true);
+    }
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTyping) {
+        setIsTyping(false);
+        emitTypingStatus(false);
+      }
+    }, 2000);
   };
 
   // Close emoji picker when clicking outside
@@ -147,6 +212,19 @@ function MessageInput() {
 
   return (
     <div className="border-t border-slate-700/50 bg-slate-900/50 p-1.5">
+      {/* Reply Preview */}
+      {replyTo && (
+        <div className="max-w-3xl mx-auto mb-1 bg-slate-800/90 rounded-lg p-1 flex items-center justify-between">
+          <div className="flex-1">
+            <p className="text-[10px] text-cyan-400">Replying to {replyTo.senderId === authUser?._id ? 'yourself' : selectedUser?.fullName}</p>
+            <p className="text-xs text-slate-300 truncate">{replyTo.text || (replyTo.image ? '📷 Image' : replyTo.audio ? '🎵 Voice message' : '')}</p>
+          </div>
+          <button onClick={() => setReplyTo(null)} className="p-0.5 hover:bg-slate-700 rounded">
+            <XIcon className="w-3 h-3 text-slate-400" />
+          </button>
+        </div>
+      )}
+      
       {/* Emoji Picker */}
       {showEmojiPicker && (
         <div 
@@ -186,10 +264,20 @@ function MessageInput() {
         </div>
       )}
 
-      {/* Audio Preview */}
-      {audioBlob && !isRecording && (
+      {/* Audio Preview with Play Button */}
+      {audioUrl && !isRecording && (
         <div className="max-w-3xl mx-auto mb-1 flex items-center gap-1 bg-slate-800/50 p-1 rounded-lg w-fit">
-          <span className="text-[10px] text-cyan-400">Audio</span>
+          <button
+            type="button"
+            onClick={togglePlayAudio}
+            className="p-0.5 rounded-full bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
+          >
+            {isPlaying ? (
+              <PauseIcon className="w-3 h-3" />
+            ) : (
+              <PlayIcon className="w-3 h-3" />
+            )}
+          </button>
           <span className="text-[10px] text-slate-400">{formatTime(recordingTime)}</span>
           <button
             onClick={removeAudio}
@@ -235,17 +323,21 @@ function MessageInput() {
             ref={inputRef}
             type="text"
             value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              isSoundEnabled && playRandomKeyStrokeSound();
-            }}
+            onChange={handleTextChange}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setShowEmojiPicker(false);
+                setReplyTo(null);
+              }
+            }}
+            onBlur={() => {
+              if (isTyping) {
+                setIsTyping(false);
+                emitTypingStatus(false);
               }
             }}
             className="flex-1 bg-transparent py-1 px-1 text-slate-200 placeholder-slate-500 focus:outline-none text-xs"
-            placeholder="Message..."
+            placeholder={replyTo ? "Reply to message..." : "Message..."}
           />
 
           {/* Voice Recording Button */}

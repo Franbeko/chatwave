@@ -16,13 +16,38 @@ const messageSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: 2000,
+      default: '',
     },
     image: {
       type: String,
+      default: '',
     },
+    audio: {
+      type: String,
+      default: '',
+    },
+    reactions: [{
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      emoji: {
+        type: String,
+        required: true
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
   },
   { timestamps: true }
 );
+
+// Add index for better query performance
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
+messageSchema.index({ receiverId: 1, senderId: 1, createdAt: -1 });
 
 const Message = mongoose.model("Message", messageSchema);
 
