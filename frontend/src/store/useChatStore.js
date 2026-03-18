@@ -7,10 +7,13 @@ export const useChatStore = create((set, get) => ({
   allContacts: [],
   chats: [],
   messages: [],
+  groups: [], // Added
   activeTab: "chats",
   selectedUser: null,
+  selectedGroup: null, // Added
   isUsersLoading: false,
   isMessagesLoading: false,
+  isGroupsLoading: false, // Added
   isSoundEnabled: JSON.parse(localStorage.getItem("isSoundEnabled")) === true,
   
   // Typing Indicator States
@@ -30,14 +33,15 @@ export const useChatStore = create((set, get) => ({
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setSelectedUser: (selectedUser) => set({ selectedUser }),
+  setSelectedGroup: (selectedGroup) => set({ selectedGroup }), // Added
 
   getAllContacts: async () => {
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/messages/contacts");
       set({ allContacts: res.data });
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to load contacts");
+    } catch {
+      toast.error("Failed to load contacts");
     } finally {
       set({ isUsersLoading: false });
     }
@@ -48,10 +52,70 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/messages/chats");
       set({ chats: res.data });
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to load chats");
+    } catch {
+      toast.error("Failed to load chats");
     } finally {
       set({ isUsersLoading: false });
+    }
+  },
+
+  // Group functions
+  getUserGroups: async () => {
+    set({ isGroupsLoading: true });
+    try {
+      const res = await axiosInstance.get("/groups");
+      set({ groups: res.data });
+    } catch {
+      toast.error("Failed to load groups");
+    } finally {
+      set({ isGroupsLoading: false });
+    }
+  },
+
+  getGroupMessages: async (groupId, page = 1) => {
+    set({ isMessagesLoading: true });
+    try {
+      const res = await axiosInstance.get(`/groups/${groupId}/messages?page=${page}&limit=20`);
+      set({ messages: res.data });
+    } catch {
+      toast.error("Failed to load messages");
+    } finally {
+      set({ isMessagesLoading: false });
+    }
+  },
+
+  sendGroupMessage: async (groupId, messageData) => {
+    const { messages } = get();
+    const { authUser } = useAuthStore.getState();
+
+    if (!messageData.text?.trim() && !messageData.image && !messageData.audio) {
+      toast.error("Cannot send empty message");
+      return;
+    }
+
+    const tempId = `temp-${Date.now()}`;
+
+    const optimisticMessage = {
+      _id: tempId,
+      senderId: authUser._id,
+      groupId,
+      text: messageData.text || '',
+      image: messageData.image || '',
+      audio: messageData.audio || '',
+      reactions: [],
+      createdAt: new Date().toISOString(),
+      isOptimistic: true,
+    };
+    
+    set({ messages: [...messages, optimisticMessage] });
+
+    try {
+      const res = await axiosInstance.post(`/groups/${groupId}/messages`, messageData);
+      const updatedMessages = messages.filter(msg => msg._id !== tempId);
+      set({ messages: [...updatedMessages, res.data] });
+    } catch {
+      set({ messages });
+      toast.error("Failed to send message");
     }
   },
 
@@ -81,8 +145,8 @@ export const useChatStore = create((set, get) => ({
           isLoadingMore: false
         });
       }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Something went wrong");
+    } catch {
+      toast.error("Something went wrong");
       set({ isMessagesLoading: false, isLoadingMore: false });
     }
   },
@@ -109,7 +173,6 @@ export const useChatStore = create((set, get) => ({
     const { selectedUser, messages } = get();
     const { authUser } = useAuthStore.getState();
 
-    // Check if there's content to send
     if (!messageData.text?.trim() && !messageData.image && !messageData.audio) {
       toast.error("Cannot send empty message");
       return;
@@ -136,18 +199,15 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
       const updatedMessages = messages.filter(msg => msg._id !== tempId);
       set({ messages: [...updatedMessages, res.data] });
-    } catch (error) {
+    } catch {
       set({ messages });
-      toast.error(error.response?.data?.message || "Failed to send message");
+      toast.error("Failed to send message");
     }
   },
 
-  // Fixed: Now properly using the parameters
   replyToMessage: (messageId, replyData) => {
-    // Store the reply information in the store if needed
     const message = get().messages.find(msg => msg._id === messageId);
     if (message) {
-      // You can store the reply context or just return the message
       set({ replyTo: { message, replyData } });
       return { message, replyData };
     }
@@ -155,7 +215,6 @@ export const useChatStore = create((set, get) => ({
   },
 
   forwardMessage: async (message) => {
-    // This would open a modal to select user
     toast.success("Select a contact to forward this message");
     return message;
   },
@@ -182,8 +241,8 @@ export const useChatStore = create((set, get) => ({
     try {
       await axiosInstance.post(`/messages/${messageId}/report`);
       toast.success("Message reported to admins");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to report message");
+    } catch {
+      toast.error("Failed to report message");
     }
   },
 
@@ -214,12 +273,13 @@ export const useChatStore = create((set, get) => ({
 
     try {
       await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
-    } catch (error) {
+    } catch {
       set({ messages });
-      toast.error(error.response?.data?.message || "Failed to add reaction");
+      toast.error("Failed to add reaction");
     }
   },
 
+  // Delete for me (yourself only)
   deleteMessage: async (messageId) => {
     const { messages } = get();
     
@@ -229,26 +289,38 @@ export const useChatStore = create((set, get) => ({
     try {
       await axiosInstance.delete(`/messages/${messageId}?type=self`);
       toast.success("Message deleted");
-    } catch (error) {
+    } catch {
       set({ messages });
-      toast.error(error.response?.data?.message || "Failed to delete message");
+      toast.error("Failed to delete message");
     }
   },
 
+  // Delete for everyone (both users)
   deleteForEveryone: async (messageId) => {
     const { messages } = get();
     
+    // Optimistic update - show "deleted" placeholder immediately
     const updatedMessages = messages.map(msg => 
-      msg._id === messageId ? { ...msg, text: "This message was deleted", deletedForEveryone: true, image: null, audio: null } : msg
+      msg._id === messageId 
+        ? { 
+            ...msg, 
+            text: "This message was deleted", 
+            image: null, 
+            audio: null,
+            deletedForEveryone: true 
+          } 
+        : msg
     );
-    set({ messages: updatedMessages });
     
+    set({ messages: updatedMessages });
+
     try {
-      await axiosInstance.delete(`/messages/${messageId}?type=everyone`);
+      await axiosInstance.delete(`/messages/${messageId}/everyone`);
       toast.success("Message deleted for everyone");
-    } catch (error) {
+    } catch {
+      // Revert on error
       set({ messages });
-      toast.error(error.response?.data?.message || "Failed to delete for everyone");
+      toast.error("Failed to delete for everyone");
     }
   },
 
@@ -345,10 +417,20 @@ export const useChatStore = create((set, get) => ({
       let updatedMessages;
       
       if (forEveryone) {
+        // For everyone deletion - show placeholder
         updatedMessages = currentMessages.map(msg => 
-          msg._id === messageId ? { ...msg, text: "This message was deleted", deletedForEveryone: true, image: null, audio: null } : msg
+          msg._id === messageId 
+            ? { 
+                ...msg, 
+                text: "This message was deleted", 
+                image: null, 
+                audio: null,
+                deletedForEveryone: true 
+              } 
+            : msg
         );
       } else {
+        // For self deletion - remove completely
         updatedMessages = currentMessages.filter(msg => msg._id !== messageId);
       }
       

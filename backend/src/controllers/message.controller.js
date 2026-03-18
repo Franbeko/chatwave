@@ -64,16 +64,12 @@ export const sendMessage = async (req, res) => {
 
     let audioUrl;
     if (audio) {
-      // upload audio to cloudinary (if it's base64)
-      if (audio.startsWith('data:')) {
-        const uploadResponse = await cloudinary.uploader.upload(audio, {
-          resource_type: "auto",
-          folder: "voice_messages"
-        });
-        audioUrl = uploadResponse.secure_url;
-      } else {
-        audioUrl = audio; // Assume it's already a URL
-      }
+      // upload audio to cloudinary
+      const uploadResponse = await cloudinary.uploader.upload(audio, {
+        resource_type: "auto",
+        folder: "voice_messages"
+      });
+      audioUrl = uploadResponse.secure_url;
     }
 
     const newMessage = new Message({
@@ -83,6 +79,7 @@ export const sendMessage = async (req, res) => {
       image: imageUrl || '',
       audio: audioUrl || '',
       reactions: [],
+      deletedForEveryone: false,
     });
 
     await newMessage.save();
@@ -106,7 +103,7 @@ export const getChatPartners = async (req, res) => {
     // find all the messages where the logged-in user is either sender or receiver
     const messages = await Message.find({
       $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
-    });
+    }).sort({ createdAt: -1 });
 
      const chatPartnerIds = [
       ...new Set(
@@ -155,7 +152,7 @@ export const addReaction = async (req, res) => {
 
     await message.save();
 
-    // Emit socket event for real-time update to both users
+    // Emit socket event
     const senderSocketId = getReceiverSocketId(message.senderId.toString());
     const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
 
@@ -178,8 +175,49 @@ export const addReaction = async (req, res) => {
   }
 };
 
-// Delete message
+// Delete for yourself only
 export const deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    // For self-deletion, we just emit socket event
+    // The message stays in database but frontend removes it
+    
+    const senderSocketId = getReceiverSocketId(message.senderId.toString());
+    const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
+
+    const deleteData = { 
+      messageId: message._id, 
+      forEveryone: false 
+    };
+
+    // Only emit to the user who is deleting
+    if (userId.toString() === message.senderId.toString()) {
+      if (senderSocketId) {
+        io.to(senderSocketId).emit('messageDeleted', deleteData);
+      }
+    } else {
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit('messageDeleted', deleteData);
+      }
+    }
+
+    res.json({ message: "Message deleted for you" });
+  } catch (error) {
+    console.error("Error in deleteMessage:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Delete for everyone
+export const deleteForEveryone = async (req, res) => {
   try {
     const { messageId } = req.params;
     const userId = req.user._id;
@@ -192,36 +230,33 @@ export const deleteMessage = async (req, res) => {
 
     // Check if user owns the message
     if (message.senderId.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "Not authorized to delete this message" });
+      return res.status(403).json({ message: "Not authorized to delete this message for everyone" });
     }
 
-    // If message has image, delete from cloudinary
-    if (message.image && message.image.includes('cloudinary')) {
-      try {
-        const publicId = message.image.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(publicId);
-      } catch (cloudinaryError) {
-        console.error("Error deleting image from cloudinary:", cloudinaryError);
-      }
+    // Check if message is within time limit (48 hours like WhatsApp)
+    const messageAge = Date.now() - new Date(message.createdAt).getTime();
+    const hours48 = 48 * 60 * 60 * 1000;
+    
+    if (messageAge > hours48) {
+      return res.status(400).json({ message: "Can only delete messages within 48 hours" });
     }
 
-    // If message has audio, delete from cloudinary
-    if (message.audio && message.audio.includes('cloudinary')) {
-      try {
-        const publicId = message.audio.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
-      } catch (cloudinaryError) {
-        console.error("Error deleting audio from cloudinary:", cloudinaryError);
-      }
-    }
-
-    await message.deleteOne();
+    // Instead of deleting, mark as deleted for everyone
+    message.text = "This message was deleted";
+    message.image = null;
+    message.audio = null;
+    message.deletedForEveryone = true;
+    
+    await message.save();
 
     // Emit socket event to both users
     const senderSocketId = getReceiverSocketId(message.senderId.toString());
     const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
 
-    const deleteData = { messageId: message._id };
+    const deleteData = { 
+      messageId: message._id, 
+      forEveryone: true 
+    };
 
     if (senderSocketId) {
       io.to(senderSocketId).emit('messageDeleted', deleteData);
@@ -230,9 +265,51 @@ export const deleteMessage = async (req, res) => {
       io.to(receiverSocketId).emit('messageDeleted', deleteData);
     }
 
-    res.json({ message: "Message deleted successfully" });
+    res.json({ message: "Message deleted for everyone" });
   } catch (error) {
-    console.error("Error in deleteMessage:", error);
+    console.error("Error in deleteForEveryone:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Search messages - SIMPLIFIED VERSION THAT WORKS
+export const searchMessages = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { q } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    console.log("Searching for:", q);
+
+    // Get ALL messages for this user
+    const messages = await Message.find({
+      $or: [
+        { senderId: userId },
+        { receiverId: userId }
+      ],
+      deletedForEveryone: false
+    })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .populate('senderId', 'fullName profilePic')
+    .populate('receiverId', 'fullName profilePic');
+
+    console.log(`Found ${messages.length} total messages`);
+
+    // Filter in JavaScript (simple and always works)
+    const searchTerm = q.toLowerCase();
+    const filteredMessages = messages.filter(msg => 
+      msg.text && msg.text.toLowerCase().includes(searchTerm)
+    );
+
+    console.log(`Found ${filteredMessages.length} matching messages`);
+
+    res.status(200).json(filteredMessages);
+  } catch (error) {
+    console.error("Error in searchMessages:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

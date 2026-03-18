@@ -10,7 +10,12 @@ const messageSchema = new mongoose.Schema(
     receiverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null, // null for group messages
+    },
+    groupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Group",
+      default: null, // null for direct messages
     },
     text: {
       type: String,
@@ -41,14 +46,18 @@ const messageSchema = new mongoose.Schema(
         default: Date.now
       }
     }],
+    deletedForEveryone: {
+      type: Boolean,
+      default: false
+    },
   },
   { timestamps: true }
 );
 
-// Add index for better query performance
+// Add indexes
 messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
-messageSchema.index({ receiverId: 1, senderId: 1, createdAt: -1 });
+messageSchema.index({ groupId: 1, createdAt: -1 });
+messageSchema.index({ text: 'text' });
 
 const Message = mongoose.model("Message", messageSchema);
-
 export default Message;

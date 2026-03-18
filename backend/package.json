@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "peer": "node peer-server.js"
   },
   "keywords": [],
   "type": "module",
@@ -23,6 +24,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.10.1",
+    "peer": "^1.0.2",
     "resend": "^6.0.2",
     "socket.io": "^4.8.1"
   },
