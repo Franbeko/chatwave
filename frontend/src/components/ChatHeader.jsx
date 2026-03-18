@@ -8,8 +8,8 @@ function ChatHeader() {
     const { onlineUsers } = useAuthStore();
     const { typingUsers } = useChatStore();
     
-    const isOnline = onlineUsers.includes(selectedUser._id);
-    const isTyping = typingUsers[selectedUser._id] || false;
+    const isOnline = onlineUsers.includes(selectedUser?._id);
+    const isTyping = typingUsers[selectedUser?._id] || false;
 
     useEffect(() => {
         const handleEscKey = (event) => {
@@ -19,6 +19,8 @@ function ChatHeader() {
         window.addEventListener("keydown", handleEscKey)
         return () => window.removeEventListener("keydown", handleEscKey)
     },[setSelectedUser])
+
+    if (!selectedUser) return null;
 
     return (
         <div className="flex justify-between items-center bg-slate-800/50 border-b border-slate-700/50 px-3 py-2">

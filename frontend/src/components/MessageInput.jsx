@@ -1,27 +1,25 @@
 import { useRef, useState, useEffect } from "react";
 import useKeyboardSound from "../hooks/useKeyboardSound";
 import { useChatStore } from "../store/useChatStore";
-import { useAuthStore } from "../store/useAuthStore"; // Add this import
+import { useAuthStore } from "../store/useAuthStore";
 import toast from "react-hot-toast";
-import { ImageIcon, SendIcon, XIcon, SmileIcon, MicIcon, SquareIcon, PlayIcon, PauseIcon } from "lucide-react";
-import EmojiPicker from "emoji-picker-react";
+import { Image, Send, X, Mic, Square, Play, Pause, Smile } from "lucide-react";
+import EmojiPickerDrawer from "./EmojiPickerDrawer";
 
 function MessageInput({ replyTo, setReplyTo }) {
   const { playRandomKeyStrokeSound } = useKeyboardSound();
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   
-  // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const fileInputRef = useRef(null);
-  const emojiPickerRef = useRef(null);
   const inputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -30,9 +28,8 @@ function MessageInput({ replyTo, setReplyTo }) {
   const typingTimeoutRef = useRef(null);
 
   const { sendMessage, isSoundEnabled, emitTypingStatus, selectedUser } = useChatStore();
-  const { authUser } = useAuthStore(); // Get authUser from store
+  const { authUser } = useAuthStore();
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -42,29 +39,53 @@ function MessageInput({ replyTo, setReplyTo }) {
     };
   }, [audioUrl, emitTypingStatus]);
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
+    
+    if (isSending) return;
     if (!text.trim() && !imagePreview && !audioBlob) return;
+    
+    setIsSending(true);
     if (isSoundEnabled) playRandomKeyStrokeSound();
 
-    sendMessage({
-      text: text.trim(),
-      image: imagePreview,
-      audio: audioBlob,
-      replyTo: replyTo ? { id: replyTo._id, text: replyTo.text, sender: replyTo.senderId } : null
-    });
-    
-    // Reset all states
-    setText("");
-    setImagePreview("");
-    setAudioBlob(null);
-    setAudioUrl(null);
-    setRecordingTime(0);
-    if (setReplyTo) setReplyTo(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    
-    emitTypingStatus(false);
-    setIsTyping(false);
+    try {
+      let audioBase64 = null;
+      if (audioBlob) {
+        audioBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(audioBlob);
+        });
+      }
+
+      await sendMessage({
+        text: text.trim(),
+        image: imagePreview,
+        audio: audioBase64,
+        replyTo: replyTo ? { 
+          id: replyTo._id, 
+          text: replyTo.text, 
+          sender: replyTo.senderId 
+        } : null
+      });
+      
+      setText("");
+      setImagePreview(null);
+      setAudioBlob(null);
+      setAudioUrl(null);
+      setRecordingTime(0);
+      if (setReplyTo) setReplyTo(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      
+      emitTypingStatus(false);
+      setIsTyping(false);
+      
+    } catch {
+      // Removed the unused error parameter - this fixes the red line
+      toast.error("Failed to send message");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleImageChange = (e) => {
@@ -72,7 +93,7 @@ function MessageInput({ replyTo, setReplyTo }) {
     if (!file) return;
     
     if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+      toast.error("Please select an image");
       return;
     }
 
@@ -97,7 +118,6 @@ function MessageInput({ replyTo, setReplyTo }) {
     setIsPlaying(false);
   };
 
-  // Voice Recording Functions
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -105,7 +125,9 @@ function MessageInput({ replyTo, setReplyTo }) {
       audioChunksRef.current = [];
 
       mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
 
       mediaRecorderRef.current.onstop = () => {
@@ -113,7 +135,6 @@ function MessageInput({ replyTo, setReplyTo }) {
         const url = URL.createObjectURL(audioBlob);
         setAudioBlob(audioBlob);
         setAudioUrl(url);
-        
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -130,8 +151,7 @@ function MessageInput({ replyTo, setReplyTo }) {
         });
       }, 1000);
       
-    } catch (error) {
-      console.error("Recording error:", error);
+    } catch {
       toast.error("Microphone access denied");
     }
   };
@@ -169,12 +189,6 @@ function MessageInput({ replyTo, setReplyTo }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const onEmojiClick = (emojiData) => {
-    setText((prev) => prev + emojiData.emoji);
-    inputRef.current?.focus();
-  };
-
-  // Handle typing indicator
   const handleTextChange = (e) => {
     const newText = e.target.value;
     setText(newText);
@@ -186,9 +200,7 @@ function MessageInput({ replyTo, setReplyTo }) {
       emitTypingStatus(true);
     }
     
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     
     typingTimeoutRef.current = setTimeout(() => {
       if (isTyping) {
@@ -198,190 +210,112 @@ function MessageInput({ replyTo, setReplyTo }) {
     }, 2000);
   };
 
-  // Close emoji picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
-        setShowEmojiPicker(false);
-      }
-    };
-    
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const handleEmojiSelect = (emoji) => {
+    setText((prev) => prev + emoji);
+    inputRef.current?.focus();
+  };
 
   return (
-    <div className="border-t border-slate-700/50 bg-slate-900/50 p-1.5">
+    <div className="bg-slate-800/50 border-t border-slate-700/50 px-3 py-2">
       {/* Reply Preview */}
       {replyTo && (
-        <div className="max-w-3xl mx-auto mb-1 bg-slate-800/90 rounded-lg p-1 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto mb-2 bg-slate-700/50 rounded-lg p-2 flex items-center justify-between border-l-4 border-cyan-500">
           <div className="flex-1">
-            <p className="text-[10px] text-cyan-400">Replying to {replyTo.senderId === authUser?._id ? 'yourself' : selectedUser?.fullName}</p>
-            <p className="text-xs text-slate-300 truncate">{replyTo.text || (replyTo.image ? '📷 Image' : replyTo.audio ? '🎵 Voice message' : '')}</p>
+            <p className="text-xs text-cyan-400">Replying to {replyTo.senderId === authUser?._id ? 'yourself' : selectedUser?.fullName}</p>
+            <p className="text-sm text-slate-300 truncate">{replyTo.text || (replyTo.image ? '📷 Image' : replyTo.audio ? '🎵 Voice' : '')}</p>
           </div>
-          <button onClick={() => setReplyTo(null)} className="p-0.5 hover:bg-slate-700 rounded">
-            <XIcon className="w-3 h-3 text-slate-400" />
+          <button onClick={() => setReplyTo(null)} className="p-1 hover:bg-slate-600 rounded-full">
+            <X className="w-3.5 h-3.5 text-slate-400" />
           </button>
-        </div>
-      )}
-      
-      {/* Emoji Picker */}
-      {showEmojiPicker && (
-        <div 
-          ref={emojiPickerRef}
-          className="absolute bottom-14 left-1 md:left-2 z-50 shadow-xl"
-        >
-          <EmojiPicker
-            onEmojiClick={onEmojiClick}
-            autoFocusSearch={false}
-            theme="dark"
-            skinTonesDisabled
-            searchPlaceholder="Search..."
-            width={260}
-            height={300}
-            previewConfig={{ showPreview: false }}
-          />
         </div>
       )}
 
       {/* Image Preview */}
       {imagePreview && (
-        <div className="max-w-3xl mx-auto mb-1">
+        <div className="max-w-3xl mx-auto mb-2">
           <div className="relative inline-block">
-            <img
-              src={imagePreview}
-              alt="Preview"
-              className="w-12 h-12 object-cover rounded-lg border border-slate-700"
-            />
+            <img src={imagePreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg border border-slate-600" />
             <button
               onClick={removeImage}
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 hover:bg-slate-700 border border-slate-600"
-              type="button"
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center hover:bg-slate-600 border border-slate-600"
             >
-              <XIcon className="w-2.5 h-2.5" />
+              <X className="w-3 h-3 text-slate-400" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Audio Preview with Play Button */}
+      {/* Audio Preview */}
       {audioUrl && !isRecording && (
-        <div className="max-w-3xl mx-auto mb-1 flex items-center gap-1 bg-slate-800/50 p-1 rounded-lg w-fit">
-          <button
-            type="button"
-            onClick={togglePlayAudio}
-            className="p-0.5 rounded-full bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30"
-          >
-            {isPlaying ? (
-              <PauseIcon className="w-3 h-3" />
-            ) : (
-              <PlayIcon className="w-3 h-3" />
-            )}
+        <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 bg-slate-700/50 p-1.5 rounded-lg w-fit">
+          <button onClick={togglePlayAudio} className="p-1 rounded-full bg-cyan-600 text-white">
+            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
           </button>
-          <span className="text-[10px] text-slate-400">{formatTime(recordingTime)}</span>
-          <button
-            onClick={removeAudio}
-            className="p-0.5 rounded-full hover:bg-slate-700"
-          >
-            <XIcon className="w-2.5 h-2.5 text-slate-400" />
+          <span className="text-xs text-slate-300">{formatTime(recordingTime)}</span>
+          <button onClick={removeAudio} className="p-1 hover:bg-slate-600 rounded-full">
+            <X className="w-3.5 h-3.5 text-slate-400" />
           </button>
         </div>
       )}
 
       {/* Recording Indicator */}
       {isRecording && (
-        <div className="max-w-3xl mx-auto mb-1 flex items-center gap-1 bg-red-500/20 p-1 rounded-lg w-fit">
-          <div className="w-1 h-1 bg-red-500 rounded-full animate-pulse"></div>
-          <span className="text-[10px] text-red-400">{formatTime(recordingTime)}</span>
-          <button
-            onClick={stopRecording}
-            className="p-0.5 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30"
-          >
-            <SquareIcon className="w-2.5 h-2.5" />
+        <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 bg-red-500/20 p-1.5 rounded-lg w-fit">
+          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+          <span className="text-xs text-red-400">{formatTime(recordingTime)}</span>
+          <button onClick={stopRecording} className="p-1 bg-red-500/20 text-red-400 rounded-full">
+            <Square className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      {/* Message Input Form */}
+      {/* Input Area - Icon sizes reduced to match screenshot */}
       <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-0.5 bg-slate-800/50 rounded-lg border border-slate-700/50 p-0.5">
-          {/* Emoji Button */}
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
-              showEmojiPicker 
-                ? "bg-cyan-500/20 text-cyan-400" 
-                : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <SmileIcon className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Text Input */}
+        <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg border border-slate-600/50 p-1">
+          <EmojiPickerDrawer onEmojiSelect={handleEmojiSelect} />
+          
           <input
             ref={inputRef}
             type="text"
             value={text}
             onChange={handleTextChange}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setShowEmojiPicker(false);
-                setReplyTo(null);
-              }
-            }}
-            onBlur={() => {
-              if (isTyping) {
-                setIsTyping(false);
-                emitTypingStatus(false);
-              }
-            }}
-            className="flex-1 bg-transparent py-1 px-1 text-slate-200 placeholder-slate-500 focus:outline-none text-xs"
-            placeholder={replyTo ? "Reply to message..." : "Message..."}
+            placeholder={replyTo ? "Reply..." : "Message..."}
+            className="flex-1 bg-transparent text-slate-200 placeholder-slate-500 px-2 py-1.5 text-sm focus:outline-none"
+            disabled={isSending}
           />
 
-          {/* Voice Recording Button */}
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
-              isRecording 
-                ? "bg-red-500/20 text-red-400 animate-pulse" 
-                : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
+            className={`p-1.5 rounded-lg transition-colors ${
+              isRecording ? 'bg-red-500/20 text-red-400' : 'hover:bg-slate-600 text-slate-400 hover:text-slate-200'
             }`}
           >
-            <MicIcon className="w-3.5 h-3.5" />
+            <Mic className="w-4 h-4" />
           </button>
 
-          {/* Hidden File Input */}
-          <input
-            type="file"
-            accept="image/*"
-            ref={fileInputRef}
-            onChange={handleImageChange}
-            className="hidden"
-          />
+          <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" />
 
-          {/* Image Upload Button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
-              imagePreview 
-                ? "bg-cyan-500/20 text-cyan-400" 
-                : "hover:bg-slate-700 text-slate-400 hover:text-slate-200"
+            className={`p-1.5 rounded-lg transition-colors ${
+              imagePreview ? 'bg-cyan-500/20 text-cyan-400' : 'hover:bg-slate-600 text-slate-400 hover:text-slate-200'
             }`}
           >
-            <ImageIcon className="w-3.5 h-3.5" />
+            <Image className="w-4 h-4" />
           </button>
 
-          {/* Send Button */}
           <button
             type="submit"
-            disabled={!text.trim() && !imagePreview && !audioBlob}
-            className="p-1 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            disabled={(!text.trim() && !imagePreview && !audioBlob) || isSending}
+            className="p-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <SendIcon className="w-3.5 h-3.5" />
+            {isSending ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
           </button>
         </div>
       </form>
