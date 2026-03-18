@@ -2,35 +2,39 @@ import { XIcon, Phone, Video } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
 import { useEffect } from "react";
 import { useAuthStore } from "../store/useAuthStore";
-import { axiosInstance } from "../lib/axios";
 
 function ChatHeader() {
   const { selectedUser, setSelectedUser } = useChatStore();
-  const { onlineUsers } = useAuthStore(); // Removed authUser
+  const { onlineUsers, authUser, socket } = useAuthStore();
   const { typingUsers } = useChatStore();
   
   const isOnline = onlineUsers.includes(selectedUser?._id);
   const isTyping = typingUsers[selectedUser?._id] || false;
 
   const handleCall = async (type) => {
-    try {
-      const res = await axiosInstance.post('/calls/initiate', {
-        receiverId: selectedUser._id,
-        type
-      });
-      
-      // Open call modal
-      window.dispatchEvent(new CustomEvent('openCall', {
-        detail: {
-          callId: res.data.callId,
-          remoteUser: selectedUser,
-          callType: type,
-          isIncoming: false
-        }
-      }));
-    } catch (error) {
-      console.error('Failed to initiate call:', error);
-    }
+    if (!socket || !selectedUser) return;
+
+    const callId = `${authUser._id}-${selectedUser._id}-${Date.now()}`;
+    
+    // Emit socket event for call
+    socket.emit('initiate-call', {
+      callId,
+      receiverId: selectedUser._id,
+      callerId: authUser._id,
+      callerName: authUser.fullName,
+      callerPic: authUser.profilePic,
+      type
+    });
+
+    // Open call modal for caller
+    window.dispatchEvent(new CustomEvent('openCall', {
+      detail: {
+        callId,
+        remoteUser: selectedUser,
+        callType: type,
+        isIncoming: false
+      }
+    }));
   };
 
   useEffect(() => {

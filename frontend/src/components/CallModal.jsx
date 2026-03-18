@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, X } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { axiosInstance } from '../lib/axios';
 import { useAuthStore } from '../store/useAuthStore';
 
 function CallModal({ 
@@ -17,6 +16,7 @@ function CallModal({
   const [callStatus, setCallStatus] = useState(isIncoming ? 'ringing' : 'connecting');
   const [duration, setDuration] = useState(0);
   const { authUser } = useAuthStore();
+  const socket = useAuthStore((state) => state.socket);
   
   const {
     localVideoRef,
@@ -54,9 +54,47 @@ function CallModal({
 
   useEffect(() => {
     if (!isIncoming && remoteUser && callStatus === 'connecting') {
-      makeCall(remoteUser._id);
+      // Small delay to ensure peer is initialized
+      setTimeout(() => {
+        makeCall(remoteUser._id);
+      }, 1000);
     }
   }, [isIncoming, remoteUser, callStatus, makeCall]);
+
+  // Listen for call events via socket
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleCallAccepted = (data) => {
+      if (data.callId === callId) {
+        setCallStatus('connected');
+      }
+    };
+
+    const handleCallRejected = (data) => {
+      if (data.callId === callId) {
+        setCallStatus('ended');
+        setTimeout(() => onClose(), 2000);
+      }
+    };
+
+    const handleCallEnded = (data) => {
+      if (data.callId === callId) {
+        setCallStatus('ended');
+        setTimeout(() => onClose(), 2000);
+      }
+    };
+
+    socket.on('call-accepted', handleCallAccepted);
+    socket.on('call-rejected', handleCallRejected);
+    socket.on('call-ended', handleCallEnded);
+
+    return () => {
+      socket.off('call-accepted', handleCallAccepted);
+      socket.off('call-rejected', handleCallRejected);
+      socket.off('call-ended', handleCallEnded);
+    };
+  }, [socket, callId, onClose]);
 
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -64,13 +102,15 @@ function CallModal({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleEndCall = async () => {
-    if (callId) {
-      try {
-        await axiosInstance.post(`/calls/${callId}/end`);
-      } catch (error) {
-        console.error('Error ending call:', error);
-      }
+  const handleEndCall = () => {
+    if (socket && callId) {
+      const participants = [authUser._id];
+      if (remoteUser) participants.push(remoteUser._id);
+      
+      socket.emit('end-call', {
+        callId,
+        participants
+      });
     }
     endWebRTCCall();
     onClose();

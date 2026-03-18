@@ -8,10 +8,9 @@ import PageLoader from './components/PageLoader';
 import { Toaster } from 'react-hot-toast';
 import CallModal from './components/CallModal';
 import IncomingCallModal from './components/IncomingCallModal';
-import { axiosInstance } from './lib/axios';
 
 function App() {
-  const { checkAuth, isCheckingAuth, authUser } = useAuthStore();
+  const { checkAuth, isCheckingAuth, authUser, socket } = useAuthStore();
   const [callModal, setCallModal] = useState({
     isOpen: false,
     callType: null,
@@ -26,7 +25,41 @@ function App() {
   }, [checkAuth]);
 
   useEffect(() => {
-    // Listen for call events
+    if (!socket) return;
+
+    // Listen for incoming calls
+    const handleIncomingCall = (data) => {
+      console.log('Incoming call received:', data);
+      setIncomingCall(data);
+    };
+
+    // Listen for call acceptance
+    const handleCallAccepted = (data) => {
+      console.log('Call accepted:', data);
+      // Update the call modal to show connected state
+      setCallModal(prev => ({ ...prev, isOpen: true, isIncoming: false }));
+      setIncomingCall(null);
+    };
+
+    // Listen for call rejection
+    const handleCallRejected = (data) => {
+      console.log('Call rejected:', data);
+      setIncomingCall(null);
+    };
+
+    socket.on('incoming-call', handleIncomingCall);
+    socket.on('call-accepted', handleCallAccepted);
+    socket.on('call-rejected', handleCallRejected);
+
+    return () => {
+      socket.off('incoming-call', handleIncomingCall);
+      socket.off('call-accepted', handleCallAccepted);
+      socket.off('call-rejected', handleCallRejected);
+    };
+  }, [socket]);
+
+  // Listen for custom openCall event
+  useEffect(() => {
     const handleOpenCall = (e) => {
       setCallModal({
         isOpen: true,
@@ -34,96 +67,41 @@ function App() {
       });
     };
 
-    const handleIncomingCall = (e) => {
-      setIncomingCall(e.detail);
-    };
-
-    const handleCallAccepted = () => { // Removed unused 'e' parameter
-      setCallModal(prev => ({ ...prev, isOpen: true, isIncoming: false }));
-      setIncomingCall(null);
-    };
-
-    const handleCallRejected = () => {
-      setIncomingCall(null);
-    };
-
-    const handleCallEnded = () => {
-      setCallModal(prev => ({ ...prev, isOpen: false }));
-      setIncomingCall(null);
-    };
-
     window.addEventListener('openCall', handleOpenCall);
-    window.addEventListener('incomingCall', handleIncomingCall);
-    window.addEventListener('callAccepted', handleCallAccepted);
-    window.addEventListener('callRejected', handleCallRejected);
-    window.addEventListener('callEnded', handleCallEnded);
-
-    // Socket listeners
-    const socket = useAuthStore.getState().socket;
-    if (socket) {
-      socket.on('incomingCall', (data) => {
-        window.dispatchEvent(new CustomEvent('incomingCall', { detail: data }));
-      });
-
-      socket.on('callAccepted', (data) => {
-        window.dispatchEvent(new CustomEvent('callAccepted', { detail: data }));
-      });
-
-      socket.on('callRejected', (data) => {
-        window.dispatchEvent(new CustomEvent('callRejected', { detail: data }));
-      });
-
-      socket.on('callEnded', (data) => {
-        window.dispatchEvent(new CustomEvent('callEnded', { detail: data }));
-      });
-    }
-
-    return () => {
-      window.removeEventListener('openCall', handleOpenCall);
-      window.removeEventListener('incomingCall', handleIncomingCall);
-      window.removeEventListener('callAccepted', handleCallAccepted);
-      window.removeEventListener('callRejected', handleCallRejected);
-      window.removeEventListener('callEnded', handleCallEnded);
-      
-      if (socket) {
-        socket.off('incomingCall');
-        socket.off('callAccepted');
-        socket.off('callRejected');
-        socket.off('callEnded');
-      }
-    };
+    return () => window.removeEventListener('openCall', handleOpenCall);
   }, []);
 
-  const handleAcceptCall = async () => {
-    if (incomingCall) {
-      try {
-        await axiosInstance.post(`/calls/${incomingCall.callId}/accept`);
-        setCallModal({
-          isOpen: true,
-          callType: incomingCall.type,
-          remoteUser: { 
-            _id: incomingCall.callerId, 
-            fullName: incomingCall.callerName,
-            profilePic: incomingCall.callerPic
-          },
-          callId: incomingCall.callId,
-          isIncoming: true
-        });
-        setIncomingCall(null);
-      } catch (error) {
-        console.error('Failed to accept call:', error);
-      }
+  const handleAcceptCall = () => {
+    if (incomingCall && socket) {
+      socket.emit('accept-call', {
+        callId: incomingCall.callId,
+        receiverId: authUser._id,
+        callerId: incomingCall.callerId,
+        receiverName: authUser.fullName
+      });
+
+      setCallModal({
+        isOpen: true,
+        callType: incomingCall.type,
+        remoteUser: { 
+          _id: incomingCall.callerId, 
+          fullName: incomingCall.callerName,
+          profilePic: incomingCall.callerPic
+        },
+        callId: incomingCall.callId,
+        isIncoming: true
+      });
+      setIncomingCall(null);
     }
   };
 
-  const handleRejectCall = async () => {
-    if (incomingCall) {
-      try {
-        await axiosInstance.post(`/calls/${incomingCall.callId}/reject`);
-        setIncomingCall(null);
-      } catch (error) {
-        console.error('Failed to reject call:', error);
-      }
+  const handleRejectCall = () => {
+    if (incomingCall && socket) {
+      socket.emit('reject-call', {
+        callId: incomingCall.callId,
+        callerId: incomingCall.callerId
+      });
+      setIncomingCall(null);
     }
   };
 
