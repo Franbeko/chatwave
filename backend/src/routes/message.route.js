@@ -7,7 +7,8 @@ import {
   addReaction,
   deleteMessage,
   deleteForEveryone,
-  searchMessages // Add this
+  searchMessages,
+  saveMissedCall // Add this import
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { arcjetProtection } from "../middleware/arcjet.middleware.js";
@@ -19,10 +20,11 @@ router.use(arcjetProtection, protectRoute);
 router.get("/contacts", getAllContacts);
 router.get("/chats", getChatPartners);
 router.get("/:id", getMessagesByUserId);
-router.get("/search/all", searchMessages); // Add search route
+router.get("/search/all", searchMessages);
 router.post("/send/:id", sendMessage);
 router.post("/:messageId/react", addReaction);
-router.delete("/:messageId", deleteMessage); // For self-deletion
-router.delete("/:messageId/everyone", deleteForEveryone); // For everyone deletion
+router.post("/missed-call", saveMissedCall); // Add this line
+router.delete("/:messageId", deleteMessage);
+router.delete("/:messageId/everyone", deleteForEveryone);
 
 export default router;

@@ -10,12 +10,12 @@ const messageSchema = new mongoose.Schema(
     receiverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null, // null for group messages
+      required: true,
     },
     groupId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Group",
-      default: null, // null for direct messages
+      default: null,
     },
     text: {
       type: String,
@@ -49,6 +49,20 @@ const messageSchema = new mongoose.Schema(
     deletedForEveryone: {
       type: Boolean,
       default: false
+    },
+    type: {
+      type: String,
+      enum: ['text', 'image', 'audio', 'missed-call', 'call-ended'],
+      default: 'text'
+    },
+    callDetails: {
+      type: {
+        type: String,
+        enum: ['audio', 'video']
+      },
+      timestamp: Date,
+      duration: Number,
+      missed: Boolean
     },
   },
   { timestamps: true }

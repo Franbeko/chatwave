@@ -7,7 +7,7 @@ import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
 import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
 import GroupMessage from "./GroupMessage";
-import { CheckCheck, Clock, Copy, Trash2, Reply, Star, X, Info } from "lucide-react"; // Removed Share2, Flag
+import { CheckCheck, Clock, Copy, Trash2, Reply, Star, X, Info, PhoneMissed } from "lucide-react";
 import toast from "react-hot-toast";
 import GroupInfo from "./GroupInfo";
 
@@ -48,7 +48,7 @@ function ChatContainer() {
     }
 
     return () => unsubscribeFromMessages();
-  }, [selectedUser?._id, selectedGroup?._id]);
+  }, [selectedUser?._id, selectedGroup?._id, getMessagesByUserId, getGroupMessages, subscribeToMessages, unsubscribeFromMessages]);
 
   useEffect(() => {
     if (messageEndRef.current) {
@@ -219,6 +219,23 @@ function ChatContainer() {
             <>
               {messages.map((msg, index) => {
                 if (!msg) return null;
+                
+                // Handle missed call messages
+                if (msg.type === 'missed-call') {
+                  return (
+                    <div key={msg._id} className="flex justify-center my-2">
+                      <div className="bg-slate-800/50 text-slate-400 text-xs px-3 py-1 rounded-full flex items-center gap-1">
+                        <PhoneMissed className="w-3 h-3" />
+                        <span>{msg.text}</span>
+                        <span>at {new Date(msg.createdAt).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}</span>
+                      </div>
+                    </div>
+                  );
+                }
+                
                 const isOwn = msg.senderId === authUser?._id || msg.senderId?._id === authUser?._id;
                 const showSender = isGroupChat && !isOwn && 
                   (index === 0 || messages[index - 1]?.senderId?._id !== msg.senderId?._id);

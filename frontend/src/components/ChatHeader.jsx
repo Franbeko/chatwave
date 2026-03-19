@@ -1,20 +1,32 @@
-import { XIcon, Phone, Video } from "lucide-react";
+import { XIcon, Phone, Video, PhoneMissed } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 
 function ChatHeader() {
   const { selectedUser, setSelectedUser } = useChatStore();
   const { onlineUsers, authUser, socket } = useAuthStore();
   const { typingUsers } = useChatStore();
+  const [callStatus, setCallStatus] = useState(null);
   
   const isOnline = onlineUsers.includes(selectedUser?._id);
   const isTyping = typingUsers[selectedUser?._id] || false;
 
   const handleCall = async (type) => {
-    if (!socket || !selectedUser) return;
+    if (!socket || !selectedUser) {
+      console.log("Cannot initiate call: socket or user missing");
+      return;
+    }
+
+    if (!isOnline) {
+      console.log("User is offline, cannot call");
+      // Show toast that user is offline
+      return;
+    }
 
     const callId = `${authUser._id}-${selectedUser._id}-${Date.now()}`;
+    
+    console.log(`Initiating ${type} call to ${selectedUser.fullName}`);
     
     // Emit socket event for call
     socket.emit('initiate-call', {
@@ -26,6 +38,8 @@ function ChatHeader() {
       type
     });
 
+    setCallStatus({ type, callId, status: 'calling' });
+
     // Open call modal for caller
     window.dispatchEvent(new CustomEvent('openCall', {
       detail: {
@@ -35,6 +49,19 @@ function ChatHeader() {
         isIncoming: false
       }
     }));
+
+    // Set timeout for unanswered call
+    setTimeout(() => {
+      if (callStatus?.status === 'calling') {
+        socket.emit('missed-call', {
+          callId,
+          callerId: authUser._id,
+          receiverId: selectedUser._id,
+          type
+        });
+        setCallStatus(null);
+      }
+    }, 30000); // 30 seconds timeout
   };
 
   useEffect(() => {
@@ -69,22 +96,32 @@ function ChatHeader() {
       </div>
 
       <div className="flex items-center gap-1">
-        {/* Voice Call Button */}
+        {/* Voice Call Button - disabled if offline */}
         <button
           onClick={() => handleCall('audio')}
-          className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
-          title="Voice Call"
+          disabled={!isOnline}
+          className={`p-2 rounded-lg transition-colors ${
+            isOnline 
+              ? 'hover:bg-slate-700/50 text-slate-400 hover:text-slate-200' 
+              : 'opacity-50 cursor-not-allowed text-slate-600'
+          }`}
+          title={isOnline ? "Voice Call" : "User is offline"}
         >
-          <Phone className="w-4 h-4 text-slate-400 hover:text-slate-200" />
+          <Phone className="w-4 h-4" />
         </button>
 
-        {/* Video Call Button */}
+        {/* Video Call Button - disabled if offline */}
         <button
           onClick={() => handleCall('video')}
-          className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
-          title="Video Call"
+          disabled={!isOnline}
+          className={`p-2 rounded-lg transition-colors ${
+            isOnline 
+              ? 'hover:bg-slate-700/50 text-slate-400 hover:text-slate-200' 
+              : 'opacity-50 cursor-not-allowed text-slate-600'
+          }`}
+          title={isOnline ? "Video Call" : "User is offline"}
         >
-          <Video className="w-4 h-4 text-slate-400 hover:text-slate-200" />
+          <Video className="w-4 h-4" />
         </button>
 
         {/* Close Button */}

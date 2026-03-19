@@ -17,6 +17,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/auth/check");
       set({ authUser: res.data });
+      // Connect socket after auth is confirmed
       get().connectSocket();
     } catch (error) {
       console.log("Error in authCheck:", error);
@@ -31,12 +32,9 @@ export const useAuthStore = create((set, get) => ({
 
     try {
       const res = await axiosInstance.post("/auth/signup", data);
-
       set({ authUser: res.data });
-
       toast.success("Account created successfully! Welcome to ChatWave 🎉");
       get().connectSocket();
-
       return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Signup failed");
@@ -52,10 +50,8 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/login", data);
       set({ authUser: res.data });
-
       toast.success("Welcome back! You're now logged in. 🎉");
       get().connectSocket();
-
       return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Login failed");
@@ -67,10 +63,11 @@ export const useAuthStore = create((set, get) => ({
 
   logout: async () => {
     try {
+      // Disconnect socket before logout
+      get().disconnectSocket();
       await axiosInstance.post("/auth/logout");
       set({ authUser: null });
       toast.success("Logged out successfully");
-      get().disconnectSocket();
     } catch (error) {
       console.log("logout error:", error);
       toast.error("Error logging out");
@@ -80,7 +77,7 @@ export const useAuthStore = create((set, get) => ({
   updateProfile: async (data) => {
     try {
       const res = await axiosInstance.put("/auth/update-profile", data);
-      set ({ authUser: res.data })
+      set({ authUser: res.data });
       toast.success("Profile updated successfully");
     } catch (error) {
       console.log("Error in update profile:", error);
@@ -89,24 +86,51 @@ export const useAuthStore = create((set, get) => ({
   },
 
   connectSocket: () => {
-    const {authUser} = get();
-    if (!authUser || get().socket?.connected) return;
+    const { authUser, socket } = get();
+    
+    // Don't connect if no user or socket already connected
+    if (!authUser || socket?.connected) {
+      console.log("Socket already connected or no user");
+      return;
+    }
 
-    const socket = io(BASE_URL, {
-      withCredentials: true, // this ensures cookies are sent with the connection
+    console.log("Connecting socket for user:", authUser._id);
+    
+    const newSocket = io(BASE_URL, {
+      query: { userId: authUser._id },
+      withCredentials: true,
+      transports: ['websocket', 'polling'], // Ensure websocket connection
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
-    socket.connect();
+    newSocket.on("connect", () => {
+      console.log("✅ Socket connected successfully:", newSocket.id);
+    });
 
-    set({ socket });
+    newSocket.on("connect_error", (error) => {
+      console.error("❌ Socket connection error:", error);
+    });
 
-    // listen for online users event
-    socket.on("getOnlineUsers", (userIds) => {
+    newSocket.on("getOnlineUsers", (userIds) => {
+      console.log("👥 Online users received:", userIds);
       set({ onlineUsers: userIds });
     });
+
+    newSocket.on("disconnect", (reason) => {
+      console.log("🔴 Socket disconnected:", reason);
+    });
+
+    set({ socket: newSocket });
   },
 
   disconnectSocket: () => {
-    if(get().socket?.connected) get().socket.disconnect();
+    const { socket } = get();
+    if (socket?.connected) {
+      console.log("Disconnecting socket...");
+      socket.disconnect();
+      set({ socket: null });
+    }
   },
 }));
