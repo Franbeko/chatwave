@@ -8,6 +8,7 @@ export const useWebRTC = ({ callType, onRemoteStream, onCallEnded }) => {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [peer, setPeer] = useState(null);
   const [connection, setConnection] = useState(null);
+  const [peerId, setPeerId] = useState(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
@@ -31,45 +32,72 @@ export const useWebRTC = ({ callType, onRemoteStream, onCallEnded }) => {
 
   // Initialize PeerJS
   const initPeer = useCallback((userId) => {
-    const newPeer = new Peer(userId, {
-      host: 'localhost',
-      port: 3001,
-      path: '/peerjs',
-      secure: false,
-      debug: 3
-    });
-
-    newPeer.on('open', (id) => {
-      console.log('PeerJS connection opened with ID:', id);
-    });
-
-    newPeer.on('call', async (call) => {
-      const stream = localStream || await initLocalMedia();
-      call.answer(stream);
-      
-      call.on('stream', (remoteStream) => {
-        setRemoteStream(remoteStream);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream;
+    return new Promise((resolve, reject) => {
+      const newPeer = new Peer(userId, {
+        host: 'localhost',
+        port: 3001,
+        path: '/peerjs',
+        secure: false,
+        debug: 3,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ]
         }
-        onRemoteStream?.(remoteStream);
       });
 
-      call.on('close', () => {
-        console.log('Call closed');
-        onCallEnded?.();
+      newPeer.on('open', (id) => {
+        console.log('✅ PeerJS connection opened with ID:', id);
+        setPeerId(id);
+        setPeer(newPeer);
+        resolve(newPeer);
       });
 
-      setConnection(call);
+      newPeer.on('error', (error) => {
+        console.error('❌ PeerJS error:', error);
+        reject(error);
+      });
+
+      newPeer.on('call', async (call) => {
+        console.log('📞 Incoming call from:', call.peer);
+        
+        try {
+          const stream = localStream || await initLocalMedia();
+          
+          call.answer(stream);
+          
+          call.on('stream', (remoteStream) => {
+            console.log('📹 Remote stream received');
+            setRemoteStream(remoteStream);
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = remoteStream;
+            }
+            onRemoteStream?.(remoteStream);
+          });
+
+          call.on('close', () => {
+            console.log('Call closed');
+            onCallEnded?.();
+          });
+
+          call.on('error', (error) => {
+            console.error('Call error:', error);
+          });
+
+          setConnection(call);
+        } catch (error) {
+          console.error('Error answering call:', error);
+        }
+      });
     });
-
-    setPeer(newPeer);
-    return newPeer;
   }, [localStream, initLocalMedia, onRemoteStream, onCallEnded]);
 
   // Make a call
   const makeCall = useCallback(async (targetPeerId) => {
     try {
+      console.log('📞 Making call to:', targetPeerId);
+      
       const stream = localStream || await initLocalMedia();
       
       if (!peer) {
@@ -80,6 +108,7 @@ export const useWebRTC = ({ callType, onRemoteStream, onCallEnded }) => {
       const call = peer.call(targetPeerId, stream);
 
       call.on('stream', (remoteStream) => {
+        console.log('📹 Remote stream received in call');
         setRemoteStream(remoteStream);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
@@ -92,9 +121,16 @@ export const useWebRTC = ({ callType, onRemoteStream, onCallEnded }) => {
         onCallEnded?.();
       });
 
+      call.on('error', (error) => {
+        console.error('Call error:', error);
+      });
+
       setConnection(call);
+      
+      return call;
     } catch (error) {
       console.error('Error making call:', error);
+      throw error;
     }
   }, [localStream, initLocalMedia, peer, onRemoteStream, onCallEnded]);
 
@@ -122,6 +158,7 @@ export const useWebRTC = ({ callType, onRemoteStream, onCallEnded }) => {
 
   // End call
   const endCall = useCallback(() => {
+    console.log('Ending call...');
     if (connection) {
       connection.close();
     }
@@ -153,6 +190,7 @@ export const useWebRTC = ({ callType, onRemoteStream, onCallEnded }) => {
     remoteStream,
     isMuted,
     isVideoOff,
+    peerId,
     localVideoRef,
     remoteVideoRef,
     initLocalMedia,

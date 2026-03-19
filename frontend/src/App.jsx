@@ -3,11 +3,13 @@ import ChatPage from './pages/ChatPage';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import { useAuthStore } from './store/useAuthStore';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import PageLoader from './components/PageLoader';
 import { Toaster } from 'react-hot-toast';
 import CallModal from './components/CallModal';
 import IncomingCallModal from './components/IncomingCallModal';
+// Remove axiosInstance import if not used
+// import { axiosInstance } from './lib/axios';
 
 function App() {
   const { checkAuth, isCheckingAuth, authUser, socket } = useAuthStore();
@@ -24,43 +26,59 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
+  // Socket event listeners
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('No socket connection yet');
+      return;
+    }
 
-    // Listen for incoming calls
+    console.log('Setting up socket listeners for calls');
+
     const handleIncomingCall = (data) => {
-      console.log('Incoming call received:', data);
+      console.log('📞 Incoming call received:', data);
       setIncomingCall(data);
     };
 
-    // Listen for call acceptance
     const handleCallAccepted = (data) => {
-      console.log('Call accepted:', data);
-      // Update the call modal to show connected state
-      setCallModal(prev => ({ ...prev, isOpen: true, isIncoming: false }));
+      console.log('✅ Call accepted event:', data);
+      setCallModal(prev => {
+        if (prev.callId === data.callId) {
+          return { ...prev, isOpen: true, isIncoming: false };
+        }
+        return prev;
+      });
       setIncomingCall(null);
     };
 
-    // Listen for call rejection
     const handleCallRejected = (data) => {
-      console.log('Call rejected:', data);
+      console.log('❌ Call rejected event:', data);
+      setIncomingCall(null);
+    };
+
+    const handleCallFailed = (data) => {
+      console.log('⚠️ Call failed:', data);
+      setCallModal(prev => ({ ...prev, isOpen: false }));
       setIncomingCall(null);
     };
 
     socket.on('incoming-call', handleIncomingCall);
     socket.on('call-accepted', handleCallAccepted);
     socket.on('call-rejected', handleCallRejected);
+    socket.on('call-failed', handleCallFailed);
 
     return () => {
       socket.off('incoming-call', handleIncomingCall);
       socket.off('call-accepted', handleCallAccepted);
       socket.off('call-rejected', handleCallRejected);
+      socket.off('call-failed', handleCallFailed);
     };
   }, [socket]);
 
   // Listen for custom openCall event
   useEffect(() => {
     const handleOpenCall = (e) => {
+      console.log('Opening call modal:', e.detail);
       setCallModal({
         isOpen: true,
         ...e.detail
@@ -71,8 +89,10 @@ function App() {
     return () => window.removeEventListener('openCall', handleOpenCall);
   }, []);
 
-  const handleAcceptCall = () => {
+  const handleAcceptCall = useCallback(() => {
     if (incomingCall && socket) {
+      console.log('Accepting call:', incomingCall.callId);
+      
       socket.emit('accept-call', {
         callId: incomingCall.callId,
         receiverId: authUser._id,
@@ -93,17 +113,19 @@ function App() {
       });
       setIncomingCall(null);
     }
-  };
+  }, [incomingCall, socket, authUser]);
 
-  const handleRejectCall = () => {
+  const handleRejectCall = useCallback(() => {
     if (incomingCall && socket) {
+      console.log('Rejecting call:', incomingCall.callId);
+      
       socket.emit('reject-call', {
         callId: incomingCall.callId,
         callerId: incomingCall.callerId
       });
       setIncomingCall(null);
     }
-  };
+  }, [incomingCall, socket]);
 
   if (isCheckingAuth) return <PageLoader />;
 

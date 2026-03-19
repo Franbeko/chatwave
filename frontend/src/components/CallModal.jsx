@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, X } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useAuthStore } from '../store/useAuthStore';
@@ -15,6 +15,7 @@ function CallModal({
 }) {
   const [callStatus, setCallStatus] = useState(isIncoming ? 'ringing' : 'connecting');
   const [duration, setDuration] = useState(0);
+  const [peerInitialized, setPeerInitialized] = useState(false);
   const { authUser } = useAuthStore();
   const socket = useAuthStore((state) => state.socket);
   
@@ -23,6 +24,7 @@ function CallModal({
     remoteVideoRef,
     isMuted,
     isVideoOff,
+    peerId,
     toggleMute,
     toggleVideo,
     endCall: endWebRTCCall,
@@ -30,19 +32,50 @@ function CallModal({
     makeCall
   } = useWebRTC({
     callType,
-    onRemoteStream: () => setCallStatus('connected'),
+    onRemoteStream: () => {
+      console.log('Remote stream received - call connected');
+      setCallStatus('connected');
+    },
     onCallEnded: () => {
+      console.log('Call ended');
       setCallStatus('ended');
       setTimeout(() => onClose(), 2000);
     }
   });
 
+  // Initialize peer when modal opens
   useEffect(() => {
-    if (isOpen && authUser) {
-      initPeer(authUser._id);
+    if (isOpen && authUser && !peerInitialized) {
+      console.log('Initializing peer for user:', authUser._id);
+      initPeer(authUser._id)
+        .then(() => {
+          setPeerInitialized(true);
+          console.log('Peer initialized successfully');
+        })
+        .catch((error) => {
+          console.error('Failed to initialize peer:', error);
+          setCallStatus('ended');
+        });
     }
-  }, [isOpen, authUser, initPeer]);
+  }, [isOpen, authUser, initPeer, peerInitialized]);
 
+  // Handle outgoing call
+  useEffect(() => {
+    if (!isIncoming && peerInitialized && remoteUser && callStatus === 'connecting') {
+      console.log('Making call to:', remoteUser._id);
+      
+      const timer = setTimeout(() => {
+        makeCall(remoteUser._id).catch((error) => {
+          console.error('Failed to make call:', error);
+          setCallStatus('ended');
+        });
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isIncoming, peerInitialized, remoteUser, callStatus, makeCall]);
+
+  // Timer for call duration
   useEffect(() => {
     if (callStatus === 'connected') {
       const timer = setInterval(() => {
@@ -52,34 +85,28 @@ function CallModal({
     }
   }, [callStatus]);
 
-  useEffect(() => {
-    if (!isIncoming && remoteUser && callStatus === 'connecting') {
-      // Small delay to ensure peer is initialized
-      setTimeout(() => {
-        makeCall(remoteUser._id);
-      }, 1000);
-    }
-  }, [isIncoming, remoteUser, callStatus, makeCall]);
-
-  // Listen for call events via socket
+  // Socket listeners for call events
   useEffect(() => {
     if (!socket) return;
 
     const handleCallAccepted = (data) => {
       if (data.callId === callId) {
+        console.log('Call accepted by receiver');
         setCallStatus('connected');
       }
     };
 
     const handleCallRejected = (data) => {
       if (data.callId === callId) {
+        console.log('Call rejected by receiver');
         setCallStatus('ended');
         setTimeout(() => onClose(), 2000);
       }
     };
 
-    const handleCallEnded = (data) => {
+    const handleCallFailed = (data) => {
       if (data.callId === callId) {
+        console.log('Call failed:', data.reason);
         setCallStatus('ended');
         setTimeout(() => onClose(), 2000);
       }
@@ -87,12 +114,12 @@ function CallModal({
 
     socket.on('call-accepted', handleCallAccepted);
     socket.on('call-rejected', handleCallRejected);
-    socket.on('call-ended', handleCallEnded);
+    socket.on('call-failed', handleCallFailed);
 
     return () => {
       socket.off('call-accepted', handleCallAccepted);
       socket.off('call-rejected', handleCallRejected);
-      socket.off('call-ended', handleCallEnded);
+      socket.off('call-failed', handleCallFailed);
     };
   }, [socket, callId, onClose]);
 
@@ -103,17 +130,30 @@ function CallModal({
   };
 
   const handleEndCall = () => {
+    console.log('Ending call...');
     if (socket && callId) {
       const participants = [authUser._id];
       if (remoteUser) participants.push(remoteUser._id);
       
       socket.emit('end-call', {
         callId,
-        participants
+        participants,
+        duration
       });
     }
     endWebRTCCall();
     onClose();
+  };
+
+  const handleAcceptIncoming = () => {
+    console.log('Accepting incoming call...');
+    setCallStatus('connecting');
+    onAccept?.();
+  };
+
+  const handleRejectIncoming = () => {
+    console.log('Rejecting incoming call...');
+    onReject?.();
   };
 
   if (!isOpen) return null;
@@ -131,25 +171,30 @@ function CallModal({
         />
         
         {/* Local Video (Picture-in-Picture) */}
-        <div className="absolute bottom-20 right-4 w-48 h-64 rounded-lg overflow-hidden border-2 border-slate-600 shadow-xl">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-        </div>
+        {callType === 'video' && (
+          <div className="absolute bottom-20 right-4 w-48 h-64 rounded-lg overflow-hidden border-2 border-slate-600 shadow-xl">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
 
         {/* Call Info Overlay */}
         <div className="absolute top-8 left-0 right-0 text-center">
           <h2 className="text-2xl font-bold text-white">{remoteUser?.fullName}</h2>
           <p className="text-slate-300 mt-1">
-            {callStatus === 'ringing' && 'Ringing...'}
-            {callStatus === 'connecting' && 'Connecting...'}
-            {callStatus === 'connected' && formatDuration(duration)}
-            {callStatus === 'ended' && 'Call ended'}
+            {callStatus === 'ringing' && '🔔 Ringing...'}
+            {callStatus === 'connecting' && '🔄 Connecting...'}
+            {callStatus === 'connected' && `⏱️ ${formatDuration(duration)}`}
+            {callStatus === 'ended' && '📴 Call ended'}
           </p>
+          {callStatus === 'connecting' && (
+            <p className="text-xs text-slate-400 mt-1">Peer ID: {peerId || 'initializing...'}</p>
+          )}
         </div>
 
         {/* Controls */}
@@ -187,7 +232,7 @@ function CallModal({
           {/* Accept Call Button (for incoming calls) */}
           {isIncoming && callStatus === 'ringing' && (
             <button
-              onClick={onAccept}
+              onClick={handleAcceptIncoming}
               className="p-4 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors animate-pulse"
             >
               <Phone className="w-6 h-6" />
@@ -197,7 +242,7 @@ function CallModal({
           {/* Reject Call Button (for incoming calls) */}
           {isIncoming && callStatus === 'ringing' && (
             <button
-              onClick={onReject}
+              onClick={handleRejectIncoming}
               className="p-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
             >
               <X className="w-6 h-6" />
